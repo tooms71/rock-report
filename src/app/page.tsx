@@ -456,6 +456,27 @@ export default function Home() {
     }
   }
 
+  async function handleCloseSession() {
+    if (!session) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const { data, error: closeError } = await supabase
+        .from("sessions")
+        .update({ phase: "closed" })
+        .eq("id", session.id)
+        .eq("phase", "reveal")
+        .select()
+        .single();
+      if (closeError) throw closeError;
+      setSession(data);
+    } catch {
+      setError("Couldn't close the session. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleAutosave(fields: UpdateFields) {
     if (!myUpdate) return;
     const { data } = await supabase
@@ -533,7 +554,7 @@ export default function Home() {
   const isFacilitator = !!me && me.id === session?.facilitator_participant_id;
   const submittedCount = allUpdates.filter((u) => u.submitted_at).length;
 
-  const isRevealing = session?.phase === "reveal";
+  const isRevealing = session?.phase === "reveal" || session?.phase === "closed";
 
   return (
     <main
@@ -568,7 +589,9 @@ export default function Home() {
       {session && !me && (
         <div className="flex flex-col gap-3">
           <p className="text-sm text-grafite dark:text-marmol/80">
-            {participants.length === 0
+            {session.phase === "closed"
+              ? "This week's session has ended. Join to see what was shared."
+              : participants.length === 0
               ? "This week's session is open. Be the first to join."
               : "This week's session is open — join in."}
           </p>
@@ -661,11 +684,16 @@ export default function Home() {
         </div>
       )}
 
-      {session && me && session.phase === "reveal" && (
+      {session && me && (session.phase === "reveal" || session.phase === "closed") && (
         <div className="flex flex-col gap-4">
           <p className="font-heading text-2xl font-bold text-ardesia dark:text-marmol">
-            🎉 This week&apos;s updates
+            {session.phase === "closed" ? "📁 Session closed" : "🎉 This week's updates"}
           </p>
+          {session.phase === "closed" && (
+            <p className="text-sm text-grafite dark:text-marmol/80">
+              This session has ended. Here&apos;s what was shared, read-only.
+            </p>
+          )}
           <AgendaPanel
             participants={participants}
             updates={allUpdates}
@@ -677,7 +705,17 @@ export default function Home() {
             reactions={reactions}
             myParticipantId={me.id}
             onToggleFlag={handleToggleFlag}
+            readOnly={session.phase === "closed"}
           />
+          {session.phase === "reveal" && isFacilitator && (
+            <button
+              onClick={handleCloseSession}
+              disabled={busy}
+              className="self-start rounded-lg bg-ardesia px-4 py-2 font-semibold text-white transition disabled:opacity-50 dark:bg-marmol dark:text-ardesia"
+            >
+              Close session
+            </button>
+          )}
         </div>
       )}
 

@@ -42,12 +42,14 @@ export function RevealGrid({
   reactions,
   myParticipantId,
   onToggleFlag,
+  readOnly = false,
 }: {
   participants: ParticipantRow[];
   updates: UpdateRow[];
   reactions: ReactionRow[];
   myParticipantId: string;
   onToggleFlag: (updateId: string, fieldKey: string) => void;
+  readOnly?: boolean;
 }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -61,6 +63,7 @@ export function RevealGrid({
             reactions={update ? reactions.filter((r) => r.target_update_id === update.id) : []}
             myParticipantId={myParticipantId}
             onToggleFlag={onToggleFlag}
+            readOnly={readOnly}
           />
         );
       })}
@@ -74,12 +77,14 @@ function UpdateCard({
   reactions,
   myParticipantId,
   onToggleFlag,
+  readOnly,
 }: {
   name: string;
   update: UpdateRow | undefined;
   reactions: ReactionRow[];
   myParticipantId: string;
   onToggleFlag: (updateId: string, fieldKey: string) => void;
+  readOnly: boolean;
 }) {
   if (!update || !update.submitted_at) {
     return (
@@ -129,6 +134,7 @@ function UpdateCard({
               ),
               myParticipantId,
               onToggleFlag: () => onToggleFlag(update.id, "offers_made"),
+              readOnly,
             }}
           />
         </div>
@@ -145,6 +151,7 @@ function UpdateCard({
             )}
             myParticipantId={myParticipantId}
             onToggleFlag={() => onToggleFlag(update.id, key)}
+            readOnly={readOnly}
           />
         ))}
       </div>
@@ -165,6 +172,7 @@ function Stat({
     reactions: ReactionRow[];
     myParticipantId: string;
     onToggleFlag: () => void;
+    readOnly: boolean;
   };
 }) {
   if (value === null) return null;
@@ -183,19 +191,26 @@ function Stat({
         <p className="text-xs font-semibold uppercase tracking-wide text-grafite dark:text-marmol/70">
           {label}
         </p>
-        {flag && (
-          <button
-            onClick={flag.onToggleFlag}
-            title="Flag for discussion"
-            className={`flex shrink-0 items-center gap-0.5 rounded px-1 text-xs transition ${
-              flaggedByMe
-                ? "text-ember"
-                : "text-grafite/50 hover:text-ember dark:text-marmol/40"
-            }`}
-          >
-            🚩{flagCount > 0 && <span className="tabular-nums">{flagCount}</span>}
-          </button>
-        )}
+        {flag &&
+          (flag.readOnly ? (
+            flagCount > 0 && (
+              <span className="flex items-center gap-0.5 px-1 text-xs text-ember">
+                🚩<span className="tabular-nums">{flagCount}</span>
+              </span>
+            )
+          ) : (
+            <button
+              onClick={flag.onToggleFlag}
+              title="Flag for discussion"
+              className={`flex shrink-0 items-center gap-0.5 rounded px-1 text-xs transition ${
+                flaggedByMe
+                  ? "text-ember"
+                  : "text-grafite/50 hover:text-ember dark:text-marmol/40"
+              }`}
+            >
+              🚩{flagCount > 0 && <span className="tabular-nums">{flagCount}</span>}
+            </button>
+          ))}
       </div>
       <p className="tabular-nums text-ardesia dark:text-marmol">
         {value}
@@ -211,12 +226,14 @@ function Field({
   reactions,
   myParticipantId,
   onToggleFlag,
+  readOnly,
 }: {
   label: string;
   value: string | null;
   reactions: ReactionRow[];
   myParticipantId: string;
   onToggleFlag: () => void;
+  readOnly: boolean;
 }) {
   if (!value) return null;
 
@@ -235,17 +252,25 @@ function Field({
         <p className="text-xs font-semibold uppercase tracking-wide text-grafite dark:text-marmol/70">
           {label}
         </p>
-        <button
-          onClick={onToggleFlag}
-          title="Flag for discussion"
-          className={`flex shrink-0 items-center gap-0.5 rounded px-1 text-xs transition ${
-            flaggedByMe
-              ? "text-ember"
-              : "text-grafite/50 hover:text-ember dark:text-marmol/40"
-          }`}
-        >
-          🚩{flagCount > 0 && <span className="tabular-nums">{flagCount}</span>}
-        </button>
+        {readOnly ? (
+          flagCount > 0 && (
+            <span className="flex items-center gap-0.5 px-1 text-xs text-ember">
+              🚩<span className="tabular-nums">{flagCount}</span>
+            </span>
+          )
+        ) : (
+          <button
+            onClick={onToggleFlag}
+            title="Flag for discussion"
+            className={`flex shrink-0 items-center gap-0.5 rounded px-1 text-xs transition ${
+              flaggedByMe
+                ? "text-ember"
+                : "text-grafite/50 hover:text-ember dark:text-marmol/40"
+            }`}
+          >
+            🚩{flagCount > 0 && <span className="tabular-nums">{flagCount}</span>}
+          </button>
+        )}
       </div>
       <p className="text-ardesia dark:text-marmol">{value}</p>
     </div>
