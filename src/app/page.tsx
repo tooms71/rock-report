@@ -5,7 +5,8 @@ import { supabase } from "@/lib/supabase";
 import { getMondayOfWeek, formatClock } from "@/lib/date";
 import { RockCard } from "@/components/RockCard";
 import { WritingForm, type UpdateFields } from "@/components/WritingForm";
-import { RevealGrid } from "@/components/RevealGrid";
+import { RevealGrid, type ReactionRow } from "@/components/RevealGrid";
+import { FlaggedPanel } from "@/components/FlaggedPanel";
 
 const WRITING_DURATION_MS = 3 * 60 * 1000;
 
@@ -45,6 +46,7 @@ export default function Home() {
   const [allUpdates, setAllUpdates] = useState<UpdateRow[]>([]);
   const [myUpdate, setMyUpdate] = useState<UpdateRow | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  const [reactions, setReactions] = useState<ReactionRow[]>([]);
 
   // Prefill the name field from a previous visit.
   useEffect(() => {
@@ -191,6 +193,66 @@ export default function Home() {
               prev.map((u) => (u.id === row.id ? row : u))
             );
           }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session?.id]);
+
+  // Load this session's reactions (including red flags), then keep them live.
+  useEffect(() => {
+    if (!session) return;
+    let active = true;
+
+    async function load() {
+      const { data } = await supabase
+        .from("reactions")
+        .select("*")
+        .eq("session_id", session!.id);
+      if (!active) return;
+      setReactions(data ?? []);
+    }
+
+    load();
+    return () => {
+      active = false;
+    };
+  }, [session?.id]);
+
+  useEffect(() => {
+    if (!session) return;
+
+    const channel = supabase
+      .channel(`reactions-${session.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "reactions",
+          filter: `session_id=eq.${session.id}`,
+        },
+        (payload) => {
+          const row = payload.new as ReactionRow;
+          setReactions((prev) =>
+            prev.some((r) => r.id === row.id) ? prev : [...prev, row]
+          );
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "reactions",
+          filter: `session_id=eq.${session.id}`,
+        },
+        (payload) => {
+          const oldRow = payload.old as { id: string };
+          setReactions((prev) => prev.filter((r) => r.id !== oldRow.id));
         }
       )
       .subscribe();
@@ -427,6 +489,36 @@ export default function Home() {
     if (data) setMyUpdate(data);
   }
 
+  async function handleToggleReaction(updateId: string, emoji: string) {
+    if (!me || !session) return;
+
+    const existing = reactions.find(
+      (r) =>
+        r.target_update_id === updateId &&
+        r.emoji === emoji &&
+        r.participant_id === me.id
+    );
+
+    if (existing) {
+      await supabase.from("reactions").delete().eq("id", existing.id);
+      setReactions((prev) => prev.filter((r) => r.id !== existing.id));
+      return;
+    }
+
+    const { data } = await supabase
+      .from("reactions")
+      .insert({
+        session_id: session.id,
+        target_type: "update",
+        target_update_id: updateId,
+        emoji,
+        participant_id: me.id,
+      })
+      .select()
+      .single();
+    if (data) setReactions((prev) => [...prev, data]);
+  }
+
   if (loading) {
     return (
       <main className="flex flex-1 items-center justify-center">
@@ -438,13 +530,21 @@ export default function Home() {
   const isFacilitator = !!me && me.id === session?.facilitator_participant_id;
   const submittedCount = allUpdates.filter((u) => u.submitted_at).length;
 
-  return (
-    <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-6 py-10">
-      <h1 className="font-heading text-3xl font-bold text-ardesia dark:text-marmol">
-        Rock Report
-      </h1>
+  const isRevealing = session?.phase === "reveal";
 
-      <RockCard />
+  return (
+    <main
+      className={`mx-auto flex w-full flex-1 flex-col gap-6 px-6 py-10 ${
+        isRevealing ? "max-w-4xl" : "max-w-md"
+      }`}
+    >
+      <div className="mx-auto flex w-full max-w-md flex-col gap-6">
+        <h1 className="font-heading text-3xl font-bold text-ardesia dark:text-marmol">
+          Rock Report
+        </h1>
+
+        <RockCard />
+      </div>
 
       {!session && (
         <div className="flex flex-col gap-3">
@@ -563,7 +663,18 @@ export default function Home() {
           <p className="font-heading text-2xl font-bold text-ardesia dark:text-marmol">
             🎉 This week&apos;s updates
           </p>
-          <RevealGrid participants={participants} updates={allUpdates} />
+          <FlaggedPanel
+            participants={participants}
+            updates={allUpdates}
+            reactions={reactions}
+          />
+          <RevealGrid
+            participants={participants}
+            updates={allUpdates}
+            reactions={reactions}
+            myParticipantId={me.id}
+            onToggleReaction={handleToggleReaction}
+          />
         </div>
       )}
 

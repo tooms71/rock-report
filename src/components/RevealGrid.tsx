@@ -11,18 +11,42 @@ type UpdateRow = UpdateFields & {
   submitted_at: string | null;
 };
 
+export type ReactionRow = {
+  id: string;
+  target_update_id: string;
+  emoji: string;
+  participant_id: string;
+};
+
+const REACTION_EMOJIS = ["👍", "🎉", "😂", "💡", "🚩"];
+
 export function RevealGrid({
   participants,
   updates,
+  reactions,
+  myParticipantId,
+  onToggleReaction,
 }: {
   participants: ParticipantRow[];
   updates: UpdateRow[];
+  reactions: ReactionRow[];
+  myParticipantId: string;
+  onToggleReaction: (updateId: string, emoji: string) => void;
 }) {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {participants.map((p) => {
         const update = updates.find((u) => u.participant_id === p.id);
-        return <UpdateCard key={p.id} name={p.display_name} update={update} />;
+        return (
+          <UpdateCard
+            key={p.id}
+            name={p.display_name}
+            update={update}
+            reactions={update ? reactions.filter((r) => r.target_update_id === update.id) : []}
+            myParticipantId={myParticipantId}
+            onToggleReaction={onToggleReaction}
+          />
+        );
       })}
     </div>
   );
@@ -31,9 +55,15 @@ export function RevealGrid({
 function UpdateCard({
   name,
   update,
+  reactions,
+  myParticipantId,
+  onToggleReaction,
 }: {
   name: string;
   update: UpdateRow | undefined;
+  reactions: ReactionRow[];
+  myParticipantId: string;
+  onToggleReaction: (updateId: string, emoji: string) => void;
 }) {
   if (!update || !update.submitted_at) {
     return (
@@ -49,9 +79,16 @@ function UpdateCard({
   }
 
   const hasOffers = update.offers_made !== null || update.offers_closed !== null;
+  const isFlagged = reactions.some((r) => r.emoji === "🚩");
 
   return (
-    <div className="rounded-2xl border border-marmol bg-marmol/60 p-5 dark:border-white/15 dark:bg-white/8">
+    <div
+      className={`rounded-2xl border bg-marmol/60 p-5 dark:bg-white/8 ${
+        isFlagged
+          ? "border-l-4 border-ember"
+          : "border-marmol dark:border-white/15"
+      }`}
+    >
       <p className="font-heading text-xl font-bold text-ardesia dark:text-marmol">
         {name}
       </p>
@@ -79,6 +116,56 @@ function UpdateCard({
         />
         <Field label="🧠 Where I could use a brain" value={update.need_brain_on} />
       </div>
+
+      <ReactionBar
+        updateId={update.id}
+        reactions={reactions}
+        myParticipantId={myParticipantId}
+        onToggle={onToggleReaction}
+      />
+    </div>
+  );
+}
+
+function ReactionBar({
+  updateId,
+  reactions,
+  myParticipantId,
+  onToggle,
+}: {
+  updateId: string;
+  reactions: ReactionRow[];
+  myParticipantId: string;
+  onToggle: (updateId: string, emoji: string) => void;
+}) {
+  return (
+    <div className="mt-4 flex flex-wrap gap-2">
+      {REACTION_EMOJIS.map((emoji) => {
+        const matching = reactions.filter((r) => r.emoji === emoji);
+        const mine = matching.some((r) => r.participant_id === myParticipantId);
+        const isFlag = emoji === "🚩";
+
+        return (
+          <button
+            key={emoji}
+            onClick={() => onToggle(updateId, emoji)}
+            className={
+              isFlag
+                ? mine
+                  ? "flex items-center gap-1 rounded-full bg-ember px-2.5 py-1 text-sm text-white transition"
+                  : "flex items-center gap-1 rounded-full border border-ember/50 px-2.5 py-1 text-sm text-ember transition hover:bg-ember-light dark:hover:bg-ember/10"
+                : mine
+                ? "flex items-center gap-1 rounded-full bg-ardesia px-2.5 py-1 text-sm text-white transition dark:bg-marmol dark:text-ardesia"
+                : "flex items-center gap-1 rounded-full border border-marmol px-2.5 py-1 text-sm text-grafite transition dark:border-white/15 dark:text-marmol/70"
+            }
+          >
+            <span>{emoji}</span>
+            {matching.length > 0 && (
+              <span className="tabular-nums">{matching.length}</span>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
