@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { getMondayOfWeek, formatClock } from "@/lib/date";
 import { RockCard } from "@/components/RockCard";
@@ -563,9 +564,14 @@ export default function Home() {
       }`}
     >
       <div className="mx-auto flex w-full max-w-md flex-col gap-6">
-        <h1 className="font-heading text-3xl font-bold text-ardesia dark:text-marmol">
-          Rock Report
-        </h1>
+        <div className="flex items-center justify-between">
+          <h1 className="font-heading text-3xl font-bold text-ardesia dark:text-marmol">
+            Rock Report
+          </h1>
+          <Link href="/archive" className="text-sm font-semibold text-ember">
+            Past sessions →
+          </Link>
+        </div>
 
         <RockCard />
       </div>

@@ -29,3 +29,19 @@ export function formatClock(totalSeconds: number): string {
   const remainingSeconds = seconds % 60;
   return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
 }
+
+// Parses a sessions.week_of string (YYYY-MM-DD) as a local date, avoiding the
+// UTC-parsing day-shift that `new Date("YYYY-MM-DD")` can cause.
+export function parseWeekOf(weekOf: string): Date {
+  const [y, m, d] = weekOf.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+// e.g. "Aug 24, 2026" — for archive listings and session headings.
+export function formatWeekOf(weekOf: string): string {
+  return parseWeekOf(weekOf).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}

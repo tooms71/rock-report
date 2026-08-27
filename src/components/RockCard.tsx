@@ -1,7 +1,7 @@
 import { getCurrentRock } from "@/lib/rocks";
 
-export function RockCard() {
-  const rock = getCurrentRock();
+export function RockCard({ date }: { date?: Date } = {}) {
+  const rock = getCurrentRock(date);
 
   return (
     <div className="rounded-2xl border border-marmol bg-marmol/60 p-5 dark:border-white/15 dark:bg-white/8">
