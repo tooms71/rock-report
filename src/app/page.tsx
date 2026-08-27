@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { getMondayOfWeek, formatClock } from "@/lib/date";
 import { RockCard } from "@/components/RockCard";
 import { WritingForm, type UpdateFields } from "@/components/WritingForm";
+import { RevealGrid } from "@/components/RevealGrid";
 
 const WRITING_DURATION_MS = 3 * 60 * 1000;
 
@@ -558,14 +559,11 @@ export default function Home() {
       )}
 
       {session && me && session.phase === "reveal" && (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4">
           <p className="font-heading text-2xl font-bold text-ardesia dark:text-marmol">
-            🎉 Time&apos;s up!
+            🎉 This week&apos;s updates
           </p>
-          <p className="text-sm text-grafite dark:text-marmol/80">
-            The full reveal screen (everyone&apos;s updates, reactions, red
-            flags) is coming in the next step.
-          </p>
+          <RevealGrid participants={participants} updates={allUpdates} />
         </div>
       )}
 
