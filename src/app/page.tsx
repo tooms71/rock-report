@@ -6,7 +6,7 @@ import { getMondayOfWeek, formatClock } from "@/lib/date";
 import { RockCard } from "@/components/RockCard";
 import { WritingForm, type UpdateFields } from "@/components/WritingForm";
 import { RevealGrid, type ReactionRow } from "@/components/RevealGrid";
-import { FlaggedPanel } from "@/components/FlaggedPanel";
+import { AgendaPanel } from "@/components/AgendaPanel";
 
 const WRITING_DURATION_MS = 3 * 60 * 1000;
 
@@ -698,7 +698,7 @@ export default function Home() {
           <p className="font-heading text-2xl font-bold text-ardesia dark:text-marmol">
             🎉 This week&apos;s updates
           </p>
-          <FlaggedPanel
+          <AgendaPanel
             participants={participants}
             updates={allUpdates}
             reactions={reactions}

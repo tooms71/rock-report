@@ -22,6 +22,11 @@ export type ReactionRow = {
 
 const REACTION_EMOJIS = ["👍", "🎉", "😂", "💡"];
 
+export function formatOffers(value: number | null, note: string | null): string | null {
+  if (value === null) return null;
+  return note ? `${value} · ${note}` : `${value}`;
+}
+
 export const FLAGGABLE_FIELDS: {
   key: keyof UpdateFields;
   label: string;
@@ -117,14 +122,21 @@ function UpdateCard({
       {hasOffers && (
         <div className="mt-3 grid grid-cols-2 gap-3">
           <Stat
-            label="Offers made"
-            value={update.offers_made}
-            note={update.offers_made_note}
-          />
-          <Stat
             label="Offers closed"
             value={update.offers_closed}
             note={update.offers_closed_note}
+          />
+          <Stat
+            label="Offers made"
+            value={update.offers_made}
+            note={update.offers_made_note}
+            flag={{
+              reactions: reactions.filter(
+                (r) => r.target_type === "field" && r.field_key === "offers_made"
+              ),
+              myParticipantId,
+              onToggleFlag: () => onToggleFlag(update.id, "offers_made"),
+            }}
           />
         </div>
       )}
@@ -196,17 +208,47 @@ function Stat({
   label,
   value,
   note,
+  flag,
 }: {
   label: string;
   value: number | null;
   note: string | null;
+  flag?: {
+    reactions: ReactionRow[];
+    myParticipantId: string;
+    onToggleFlag: () => void;
+  };
 }) {
   if (value === null) return null;
+
+  const flagCount = flag?.reactions.length ?? 0;
+  const flaggedByMe =
+    flag?.reactions.some((r) => r.participant_id === flag.myParticipantId) ?? false;
+
   return (
-    <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-grafite dark:text-marmol/70">
-        {label}
-      </p>
+    <div
+      className={
+        flagCount > 0 ? "rounded-lg bg-ember-light p-2 dark:bg-ember/15" : undefined
+      }
+    >
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-grafite dark:text-marmol/70">
+          {label}
+        </p>
+        {flag && (
+          <button
+            onClick={flag.onToggleFlag}
+            title="Flag for discussion"
+            className={`flex shrink-0 items-center gap-0.5 rounded px-1 text-xs transition ${
+              flaggedByMe
+                ? "text-ember"
+                : "text-grafite/50 hover:text-ember dark:text-marmol/40"
+            }`}
+          >
+            🚩{flagCount > 0 && <span className="tabular-nums">{flagCount}</span>}
+          </button>
+        )}
+      </div>
       <p className="tabular-nums text-ardesia dark:text-marmol">
         {value}
         {note && <span className="text-grafite dark:text-marmol/80"> · {note}</span>}
