@@ -198,7 +198,7 @@ export default function Home() {
 
       {!session && (
         <div className="flex flex-col gap-3">
-          <p className="text-sm text-grafite">
+          <p className="text-sm text-grafite dark:text-nuvola">
             No session yet this week. Start one for the team.
           </p>
           <NameInput name={name} setName={setName} disabled={busy} />
@@ -214,7 +214,7 @@ export default function Home() {
 
       {session && !me && (
         <div className="flex flex-col gap-3">
-          <p className="text-sm text-grafite">
+          <p className="text-sm text-grafite dark:text-nuvola">
             {participants.length === 0
               ? "This week's session is open. Be the first to join."
               : "This week's session is open — join in."}
@@ -246,7 +246,7 @@ export default function Home() {
       {session && me && (
         <div className="flex flex-col gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-grafite">
+            <p className="text-xs font-semibold uppercase tracking-wide text-grafite dark:text-nuvola">
               Who&apos;s here ({participants.length})
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
@@ -262,7 +262,7 @@ export default function Home() {
             </div>
           </div>
 
-          <p className="text-sm text-grafite">
+          <p className="text-sm text-grafite dark:text-nuvola">
             {isFacilitator
               ? "You created this session. The Start button arrives in the next step."
               : "You're in. Waiting for the facilitator to start writing."}
