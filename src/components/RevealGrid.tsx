@@ -13,12 +13,24 @@ type UpdateRow = UpdateFields & {
 
 export type ReactionRow = {
   id: string;
+  target_type: string;
   target_update_id: string;
+  field_key: string | null;
   emoji: string;
   participant_id: string;
 };
 
-const REACTION_EMOJIS = ["👍", "🎉", "😂", "💡", "🚩"];
+const REACTION_EMOJIS = ["👍", "🎉", "😂", "💡"];
+
+export const FLAGGABLE_FIELDS: {
+  key: keyof UpdateFields;
+  label: string;
+  emoji?: string;
+}[] = [
+  { key: "roles_opened", label: "New roles opened" },
+  { key: "learned_or_surprised", label: "Something learned / surprised", emoji: "💡" },
+  { key: "need_brain_on", label: "Where I could use a brain", emoji: "🧠" },
+];
 
 export function RevealGrid({
   participants,
@@ -26,12 +38,14 @@ export function RevealGrid({
   reactions,
   myParticipantId,
   onToggleReaction,
+  onToggleFlag,
 }: {
   participants: ParticipantRow[];
   updates: UpdateRow[];
   reactions: ReactionRow[];
   myParticipantId: string;
   onToggleReaction: (updateId: string, emoji: string) => void;
+  onToggleFlag: (updateId: string, fieldKey: string) => void;
 }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -45,6 +59,7 @@ export function RevealGrid({
             reactions={update ? reactions.filter((r) => r.target_update_id === update.id) : []}
             myParticipantId={myParticipantId}
             onToggleReaction={onToggleReaction}
+            onToggleFlag={onToggleFlag}
           />
         );
       })}
@@ -58,12 +73,14 @@ function UpdateCard({
   reactions,
   myParticipantId,
   onToggleReaction,
+  onToggleFlag,
 }: {
   name: string;
   update: UpdateRow | undefined;
   reactions: ReactionRow[];
   myParticipantId: string;
   onToggleReaction: (updateId: string, emoji: string) => void;
+  onToggleFlag: (updateId: string, fieldKey: string) => void;
 }) {
   if (!update || !update.submitted_at) {
     return (
@@ -79,19 +96,23 @@ function UpdateCard({
   }
 
   const hasOffers = update.offers_made !== null || update.offers_closed !== null;
-  const isFlagged = reactions.some((r) => r.emoji === "🚩");
+  const flagCount = reactions.filter(
+    (r) => r.target_type === "field" && r.emoji === "🚩"
+  ).length;
+  const cardReactions = reactions.filter((r) => r.target_type === "update");
 
   return (
-    <div
-      className={`rounded-2xl border bg-marmol/60 p-5 dark:bg-white/8 ${
-        isFlagged
-          ? "border-l-4 border-ember"
-          : "border-marmol dark:border-white/15"
-      }`}
-    >
-      <p className="font-heading text-xl font-bold text-ardesia dark:text-marmol">
-        {name}
-      </p>
+    <div className="rounded-2xl border border-marmol bg-marmol/60 p-5 dark:border-white/15 dark:bg-white/8">
+      <div className="flex items-center gap-2">
+        <p className="font-heading text-xl font-bold text-ardesia dark:text-marmol">
+          {name}
+        </p>
+        {flagCount > 0 && (
+          <span className="flex items-center gap-1 rounded-full bg-ember px-2 py-0.5 text-xs font-semibold text-white">
+            🚩 {flagCount}
+          </span>
+        )}
+      </div>
 
       {hasOffers && (
         <div className="mt-3 grid grid-cols-2 gap-3">
@@ -109,17 +130,23 @@ function UpdateCard({
       )}
 
       <div className="mt-3 flex flex-col gap-3">
-        <Field label="New roles opened" value={update.roles_opened} />
-        <Field
-          label="💡 Something learned / surprised"
-          value={update.learned_or_surprised}
-        />
-        <Field label="🧠 Where I could use a brain" value={update.need_brain_on} />
+        {FLAGGABLE_FIELDS.map(({ key, label, emoji }) => (
+          <Field
+            key={key}
+            label={emoji ? `${emoji} ${label}` : label}
+            value={update[key] as string | null}
+            reactions={reactions.filter(
+              (r) => r.target_type === "field" && r.field_key === key
+            )}
+            myParticipantId={myParticipantId}
+            onToggleFlag={() => onToggleFlag(update.id, key)}
+          />
+        ))}
       </div>
 
       <ReactionBar
         updateId={update.id}
-        reactions={reactions}
+        reactions={cardReactions}
         myParticipantId={myParticipantId}
         onToggle={onToggleReaction}
       />
@@ -143,18 +170,13 @@ function ReactionBar({
       {REACTION_EMOJIS.map((emoji) => {
         const matching = reactions.filter((r) => r.emoji === emoji);
         const mine = matching.some((r) => r.participant_id === myParticipantId);
-        const isFlag = emoji === "🚩";
 
         return (
           <button
             key={emoji}
             onClick={() => onToggle(updateId, emoji)}
             className={
-              isFlag
-                ? mine
-                  ? "flex items-center gap-1 rounded-full bg-ember px-2.5 py-1 text-sm text-white transition"
-                  : "flex items-center gap-1 rounded-full border border-ember/50 px-2.5 py-1 text-sm text-ember transition hover:bg-ember-light dark:hover:bg-ember/10"
-                : mine
+              mine
                 ? "flex items-center gap-1 rounded-full bg-ardesia px-2.5 py-1 text-sm text-white transition dark:bg-marmol dark:text-ardesia"
                 : "flex items-center gap-1 rounded-full border border-marmol px-2.5 py-1 text-sm text-grafite transition dark:border-white/15 dark:text-marmol/70"
             }
@@ -193,13 +215,48 @@ function Stat({
   );
 }
 
-function Field({ label, value }: { label: string; value: string | null }) {
+function Field({
+  label,
+  value,
+  reactions,
+  myParticipantId,
+  onToggleFlag,
+}: {
+  label: string;
+  value: string | null;
+  reactions: ReactionRow[];
+  myParticipantId: string;
+  onToggleFlag: () => void;
+}) {
   if (!value) return null;
+
+  const flagCount = reactions.length;
+  const flaggedByMe = reactions.some((r) => r.participant_id === myParticipantId);
+
   return (
-    <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-grafite dark:text-marmol/70">
-        {label}
-      </p>
+    <div
+      className={
+        flagCount > 0
+          ? "rounded-lg bg-ember-light p-2 dark:bg-ember/15"
+          : undefined
+      }
+    >
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-grafite dark:text-marmol/70">
+          {label}
+        </p>
+        <button
+          onClick={onToggleFlag}
+          title="Flag for discussion"
+          className={`flex shrink-0 items-center gap-0.5 rounded px-1 text-xs transition ${
+            flaggedByMe
+              ? "text-ember"
+              : "text-grafite/50 hover:text-ember dark:text-marmol/40"
+          }`}
+        >
+          🚩{flagCount > 0 && <span className="tabular-nums">{flagCount}</span>}
+        </button>
+      </div>
       <p className="text-ardesia dark:text-marmol">{value}</p>
     </div>
   );
