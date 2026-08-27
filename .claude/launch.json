@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rock-report-dev",
+      "runtimeExecutable": "/bin/zsh",
+      "runtimeArgs": ["-c", "source ~/.nvm/nvm.sh && nvm use default > /dev/null && npm run dev"],
+      "port": 3000
+    }
+  ]
+}
