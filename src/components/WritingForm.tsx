@@ -10,6 +10,7 @@ export type UpdateFields = {
   roles_opened: string | null;
   learned_or_surprised: string | null;
   need_brain_on: string | null;
+  anything_else: string | null;
 };
 
 const AUTOSAVE_DELAY_MS = 600;
@@ -79,6 +80,13 @@ export function WritingForm({
         value={fields.need_brain_on}
         onChange={(v) => updateField("need_brain_on", v)}
         rows={3}
+      />
+
+      <TextField
+        label="Anything else?"
+        value={fields.anything_else}
+        onChange={(v) => updateField("anything_else", v)}
+        rows={2}
       />
 
       <button

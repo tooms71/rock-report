@@ -20,8 +20,6 @@ export type ReactionRow = {
   participant_id: string;
 };
 
-const REACTION_EMOJIS = ["👍", "🎉", "😂", "💡"];
-
 export function formatOffers(value: number | null, note: string | null): string | null {
   if (value === null) return null;
   return note ? `${value} · ${note}` : `${value}`;
@@ -35,6 +33,7 @@ export const FLAGGABLE_FIELDS: {
   { key: "roles_opened", label: "New roles opened" },
   { key: "learned_or_surprised", label: "Something learned / surprised", emoji: "💡" },
   { key: "need_brain_on", label: "Where I could use a brain", emoji: "🧠" },
+  { key: "anything_else", label: "Anything else?" },
 ];
 
 export function RevealGrid({
@@ -42,14 +41,12 @@ export function RevealGrid({
   updates,
   reactions,
   myParticipantId,
-  onToggleReaction,
   onToggleFlag,
 }: {
   participants: ParticipantRow[];
   updates: UpdateRow[];
   reactions: ReactionRow[];
   myParticipantId: string;
-  onToggleReaction: (updateId: string, emoji: string) => void;
   onToggleFlag: (updateId: string, fieldKey: string) => void;
 }) {
   return (
@@ -63,7 +60,6 @@ export function RevealGrid({
             update={update}
             reactions={update ? reactions.filter((r) => r.target_update_id === update.id) : []}
             myParticipantId={myParticipantId}
-            onToggleReaction={onToggleReaction}
             onToggleFlag={onToggleFlag}
           />
         );
@@ -77,14 +73,12 @@ function UpdateCard({
   update,
   reactions,
   myParticipantId,
-  onToggleReaction,
   onToggleFlag,
 }: {
   name: string;
   update: UpdateRow | undefined;
   reactions: ReactionRow[];
   myParticipantId: string;
-  onToggleReaction: (updateId: string, emoji: string) => void;
   onToggleFlag: (updateId: string, fieldKey: string) => void;
 }) {
   if (!update || !update.submitted_at) {
@@ -104,7 +98,6 @@ function UpdateCard({
   const flagCount = reactions.filter(
     (r) => r.target_type === "field" && r.emoji === "🚩"
   ).length;
-  const cardReactions = reactions.filter((r) => r.target_type === "update");
 
   return (
     <div className="rounded-2xl border border-marmol bg-marmol/60 p-5 dark:border-white/15 dark:bg-white/8">
@@ -155,51 +148,6 @@ function UpdateCard({
           />
         ))}
       </div>
-
-      <ReactionBar
-        updateId={update.id}
-        reactions={cardReactions}
-        myParticipantId={myParticipantId}
-        onToggle={onToggleReaction}
-      />
-    </div>
-  );
-}
-
-function ReactionBar({
-  updateId,
-  reactions,
-  myParticipantId,
-  onToggle,
-}: {
-  updateId: string;
-  reactions: ReactionRow[];
-  myParticipantId: string;
-  onToggle: (updateId: string, emoji: string) => void;
-}) {
-  return (
-    <div className="mt-4 flex flex-wrap gap-2">
-      {REACTION_EMOJIS.map((emoji) => {
-        const matching = reactions.filter((r) => r.emoji === emoji);
-        const mine = matching.some((r) => r.participant_id === myParticipantId);
-
-        return (
-          <button
-            key={emoji}
-            onClick={() => onToggle(updateId, emoji)}
-            className={
-              mine
-                ? "flex items-center gap-1 rounded-full bg-ardesia px-2.5 py-1 text-sm text-white transition dark:bg-marmol dark:text-ardesia"
-                : "flex items-center gap-1 rounded-full border border-marmol px-2.5 py-1 text-sm text-grafite transition dark:border-white/15 dark:text-marmol/70"
-            }
-          >
-            <span>{emoji}</span>
-            {matching.length > 0 && (
-              <span className="tabular-nums">{matching.length}</span>
-            )}
-          </button>
-        );
-      })}
     </div>
   );
 }

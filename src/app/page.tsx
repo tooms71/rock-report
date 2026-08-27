@@ -489,38 +489,6 @@ export default function Home() {
     if (data) setMyUpdate(data);
   }
 
-  async function handleToggleReaction(updateId: string, emoji: string) {
-    if (!me || !session) return;
-
-    const existing = reactions.find(
-      (r) =>
-        r.target_type === "update" &&
-        r.target_update_id === updateId &&
-        r.emoji === emoji &&
-        r.participant_id === me.id
-    );
-
-    if (existing) {
-      await supabase.from("reactions").delete().eq("id", existing.id);
-      setReactions((prev) => prev.filter((r) => r.id !== existing.id));
-      return;
-    }
-
-    const { data } = await supabase
-      .from("reactions")
-      .insert({
-        session_id: session.id,
-        target_type: "update",
-        target_update_id: updateId,
-        field_key: null,
-        emoji,
-        participant_id: me.id,
-      })
-      .select()
-      .single();
-    if (data) setReactions((prev) => [...prev, data]);
-  }
-
   async function handleToggleFlag(updateId: string, fieldKey: string) {
     if (!me || !session) return;
 
@@ -708,7 +676,6 @@ export default function Home() {
             updates={allUpdates}
             reactions={reactions}
             myParticipantId={me.id}
-            onToggleReaction={handleToggleReaction}
             onToggleFlag={handleToggleFlag}
           />
         </div>

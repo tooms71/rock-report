@@ -38,9 +38,13 @@ create table if not exists updates (
   roles_opened text,
   learned_or_surprised text,
   need_brain_on text,
+  anything_else text,
   submitted_at timestamptz,
   unique (session_id, participant_id)
 );
+
+-- Safe to re-run: adds the column if this script ran before "anything_else" existed.
+alter table if exists updates add column if not exists anything_else text;
 
 -- reactions: emoji reactions on updates or individual fields, including the 🚩 red flag
 create table if not exists reactions (
