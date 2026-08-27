@@ -21,3 +21,11 @@ export function getMondayOfWeek(date: Date): string {
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
 }
+
+// Formats a non-negative number of seconds as "m:ss" for the writing timer.
+export function formatClock(totalSeconds: number): string {
+  const seconds = Math.max(0, Math.round(totalSeconds));
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
+}

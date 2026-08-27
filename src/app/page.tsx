@@ -2,13 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { getMondayOfWeek } from "@/lib/date";
+import { getMondayOfWeek, formatClock } from "@/lib/date";
 import { RockCard } from "@/components/RockCard";
+import { WritingForm, type UpdateFields } from "@/components/WritingForm";
+
+const WRITING_DURATION_MS = 3 * 60 * 1000;
 
 type SessionRow = {
   id: string;
   week_of: string;
   phase: string;
+  writing_ends_at: string | null;
   facilitator_participant_id: string | null;
 };
 
@@ -17,6 +21,13 @@ type ParticipantRow = {
   session_id: string;
   display_name: string;
   joined_at: string;
+};
+
+type UpdateRow = UpdateFields & {
+  id: string;
+  session_id: string;
+  participant_id: string;
+  submitted_at: string | null;
 };
 
 const NAME_KEY = "rockreport:name";
@@ -30,9 +41,15 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [allUpdates, setAllUpdates] = useState<UpdateRow[]>([]);
+  const [myUpdate, setMyUpdate] = useState<UpdateRow | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+
   // Prefill the name field from a previous visit.
   useEffect(() => {
     const saved = window.localStorage.getItem(NAME_KEY);
+    // localStorage isn't available during SSR, so this has to run after mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (saved) setName(saved);
   }, []);
 
@@ -102,6 +119,171 @@ export default function Home() {
       supabase.removeChannel(channel);
     };
   }, [session?.id]);
+
+  // Stay in sync when the phase or timer changes — on any client, from any cause.
+  useEffect(() => {
+    if (!session) return;
+
+    const channel = supabase
+      .channel(`session-${session.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "sessions",
+          filter: `id=eq.${session.id}`,
+        },
+        (payload) => {
+          setSession(payload.new as SessionRow);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session?.id]);
+
+  // Load everyone's updates for this session, then keep them live.
+  useEffect(() => {
+    if (!session) return;
+    let active = true;
+
+    async function load() {
+      const { data } = await supabase
+        .from("updates")
+        .select("*")
+        .eq("session_id", session!.id);
+      if (!active) return;
+      setAllUpdates(data ?? []);
+    }
+
+    load();
+    return () => {
+      active = false;
+    };
+  }, [session?.id]);
+
+  useEffect(() => {
+    if (!session) return;
+
+    const channel = supabase
+      .channel(`updates-${session.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "updates",
+          filter: `session_id=eq.${session.id}`,
+        },
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            const row = payload.new as UpdateRow;
+            setAllUpdates((prev) =>
+              prev.some((u) => u.id === row.id) ? prev : [...prev, row]
+            );
+          } else if (payload.eventType === "UPDATE") {
+            const row = payload.new as UpdateRow;
+            setAllUpdates((prev) =>
+              prev.map((u) => (u.id === row.id ? row : u))
+            );
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session?.id]);
+
+  // The moment writing starts, make sure I have a draft row to autosave into.
+  useEffect(() => {
+    if (!session || !me) return;
+    if (session.phase !== "writing") return;
+    if (myUpdate) return;
+
+    let active = true;
+    async function ensureDraft() {
+      const { data: existing } = await supabase
+        .from("updates")
+        .select("*")
+        .eq("session_id", session!.id)
+        .eq("participant_id", me!.id)
+        .maybeSingle();
+
+      if (!active) return;
+      if (existing) {
+        setMyUpdate(existing);
+        return;
+      }
+
+      const { data: created } = await supabase
+        .from("updates")
+        .insert({ session_id: session!.id, participant_id: me!.id })
+        .select()
+        .single();
+
+      if (!active) return;
+      if (created) {
+        setMyUpdate(created);
+        setAllUpdates((prev) =>
+          prev.some((u) => u.id === created.id) ? prev : [...prev, created]
+        );
+      }
+    }
+
+    ensureDraft();
+    return () => {
+      active = false;
+    };
+  }, [session?.phase, session?.id, me, myUpdate]);
+
+  async function attemptReveal(sessionId: string) {
+    await supabase
+      .from("sessions")
+      .update({ phase: "reveal" })
+      .eq("id", sessionId)
+      .eq("phase", "writing");
+  }
+
+  // Countdown, computed from the shared writing_ends_at — never a local stopwatch.
+  useEffect(() => {
+    if (!session || session.phase !== "writing" || !session.writing_ends_at) {
+      // Reset the displayed countdown to match the external session state we just read.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSecondsLeft(null);
+      return;
+    }
+
+    const endsAt = new Date(session.writing_ends_at).getTime();
+    function tick() {
+      setSecondsLeft(Math.max(0, (endsAt - Date.now()) / 1000));
+    }
+    tick();
+    const interval = setInterval(tick, 250);
+    return () => clearInterval(interval);
+  }, [session?.phase, session?.writing_ends_at]);
+
+  // Flip to reveal when time's up. The DB guard (phase='writing') means only one
+  // caller across all connected clients actually succeeds, however many try.
+  useEffect(() => {
+    if (!session || session.phase !== "writing") return;
+    if (secondsLeft === null || secondsLeft > 0) return;
+    attemptReveal(session.id);
+  }, [session?.phase, session?.id, secondsLeft]);
+
+  // Flip to reveal early once everyone present has submitted.
+  useEffect(() => {
+    if (!session || session.phase !== "writing") return;
+    if (participants.length === 0) return;
+    const submittedCount = allUpdates.filter((u) => u.submitted_at).length;
+    if (submittedCount >= participants.length) {
+      attemptReveal(session.id);
+    }
+  }, [session?.phase, session?.id, allUpdates, participants.length]);
 
   async function handleCreateSession() {
     const trimmed = name.trim();
@@ -178,6 +360,72 @@ export default function Home() {
     }
   }
 
+  async function handleStartWriting() {
+    if (!session) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const writingEndsAt = new Date(Date.now() + WRITING_DURATION_MS).toISOString();
+      const { data, error: startError } = await supabase
+        .from("sessions")
+        .update({ phase: "writing", writing_ends_at: writingEndsAt })
+        .eq("id", session.id)
+        .eq("phase", "lobby")
+        .select()
+        .single();
+      if (startError) throw startError;
+      setSession(data);
+    } catch {
+      setError("Couldn't start writing. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRevealNow() {
+    if (!session) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await attemptReveal(session.id);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleAutosave(fields: UpdateFields) {
+    if (!myUpdate) return;
+    const { data } = await supabase
+      .from("updates")
+      .update(fields)
+      .eq("id", myUpdate.id)
+      .select()
+      .single();
+    if (data) setMyUpdate(data);
+  }
+
+  async function handleSubmitUpdate() {
+    if (!myUpdate) return;
+    const { data } = await supabase
+      .from("updates")
+      .update({ submitted_at: new Date().toISOString() })
+      .eq("id", myUpdate.id)
+      .select()
+      .single();
+    if (data) setMyUpdate(data);
+  }
+
+  async function handleUnsubmit() {
+    if (!myUpdate) return;
+    const { data } = await supabase
+      .from("updates")
+      .update({ submitted_at: null })
+      .eq("id", myUpdate.id)
+      .select()
+      .single();
+    if (data) setMyUpdate(data);
+  }
+
   if (loading) {
     return (
       <main className="flex flex-1 items-center justify-center">
@@ -187,10 +435,11 @@ export default function Home() {
   }
 
   const isFacilitator = !!me && me.id === session?.facilitator_participant_id;
+  const submittedCount = allUpdates.filter((u) => u.submitted_at).length;
 
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-6 py-10">
-      <h1 className="font-heading text-3xl font-bold text-ardesia">
+      <h1 className="font-heading text-3xl font-bold text-ardesia dark:text-marmol">
         Rock Report
       </h1>
 
@@ -243,35 +492,112 @@ export default function Home() {
         </div>
       )}
 
-      {session && me && (
+      {session && me && session.phase === "lobby" && (
         <div className="flex flex-col gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-grafite dark:text-marmol/70">
-              Who&apos;s here ({participants.length})
+          <PresenceList participants={participants} session={session} />
+          {isFacilitator ? (
+            <button
+              onClick={handleStartWriting}
+              disabled={busy}
+              className="rounded-lg bg-ember px-4 py-2 font-semibold text-white transition disabled:opacity-50"
+            >
+              Start writing (3:00)
+            </button>
+          ) : (
+            <p className="text-sm text-grafite dark:text-marmol/80">
+              You&apos;re in. Waiting for the facilitator to start writing.
             </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {participants.map((p) => (
-                <span
-                  key={p.id}
-                  className="rounded-full bg-marmol px-3 py-1 text-sm text-ardesia"
-                >
-                  {p.display_name}
-                  {p.id === session.facilitator_participant_id && " 🎙️"}
-                </span>
-              ))}
-            </div>
+          )}
+        </div>
+      )}
+
+      {session && me && session.phase === "writing" && (
+        <div className="flex flex-col gap-5">
+          <div className="flex items-center justify-between">
+            <p className="font-heading text-4xl font-bold tabular-nums text-ember">
+              {secondsLeft !== null ? formatClock(secondsLeft) : "3:00"}
+            </p>
+            <p className="text-sm text-grafite dark:text-marmol/80">
+              {submittedCount}/{participants.length} submitted
+            </p>
           </div>
 
+          {isFacilitator && (
+            <button
+              onClick={handleRevealNow}
+              disabled={busy}
+              className="self-start rounded-lg border border-ember px-3 py-1.5 text-sm font-semibold text-ember transition disabled:opacity-50"
+            >
+              Reveal now
+            </button>
+          )}
+
+          {myUpdate && !myUpdate.submitted_at && (
+            <WritingForm
+              initialFields={myUpdate}
+              onAutosave={handleAutosave}
+              onSubmit={handleSubmitUpdate}
+              submitting={busy}
+            />
+          )}
+
+          {myUpdate && myUpdate.submitted_at && (
+            <div className="flex flex-col gap-3">
+              <p className="text-sm text-grafite dark:text-marmol/80">
+                Submitted. Waiting for the reveal…
+              </p>
+              <button
+                onClick={handleUnsubmit}
+                className="self-start text-sm font-semibold text-ember"
+              >
+                Edit my answers
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {session && me && session.phase === "reveal" && (
+        <div className="flex flex-col gap-3">
+          <p className="font-heading text-2xl font-bold text-ardesia dark:text-marmol">
+            🎉 Time&apos;s up!
+          </p>
           <p className="text-sm text-grafite dark:text-marmol/80">
-            {isFacilitator
-              ? "You created this session. The Start button arrives in the next step."
-              : "You're in. Waiting for the facilitator to start writing."}
+            The full reveal screen (everyone&apos;s updates, reactions, red
+            flags) is coming in the next step.
           </p>
         </div>
       )}
 
       {error && <p className="text-sm text-ember">{error}</p>}
     </main>
+  );
+}
+
+function PresenceList({
+  participants,
+  session,
+}: {
+  participants: ParticipantRow[];
+  session: SessionRow;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-grafite dark:text-marmol/70">
+        Who&apos;s here ({participants.length})
+      </p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {participants.map((p) => (
+          <span
+            key={p.id}
+            className="rounded-full bg-marmol px-3 py-1 text-sm text-ardesia"
+          >
+            {p.display_name}
+            {p.id === session.facilitator_participant_id && " 🎙️"}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 
