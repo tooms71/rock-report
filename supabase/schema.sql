@@ -18,8 +18,14 @@ create table if not exists participants (
   id uuid primary key default gen_random_uuid(),
   session_id uuid not null references sessions(id) on delete cascade,
   display_name text not null,
+  emoji text,
   joined_at timestamptz not null default now()
 );
+
+-- Safe to re-run: adds the column if this script ran before "emoji" existed.
+-- Each person's emoji is remembered client-side (localStorage), same as their
+-- name, and just carried along as a plain field on this row.
+alter table if exists participants add column if not exists emoji text;
 
 -- now that participants exists, point sessions.facilitator at it
 alter table sessions

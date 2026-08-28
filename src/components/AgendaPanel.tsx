@@ -4,6 +4,7 @@ import type { UpdateFields } from "@/components/WritingForm";
 type ParticipantRow = {
   id: string;
   display_name: string;
+  emoji: string | null;
 };
 
 type UpdateRow = UpdateFields & {
@@ -27,8 +28,11 @@ export function AgendaPanel({
   reactions: ReactionRow[];
 }) {
   const submitted = updates.filter((u) => u.submitted_at);
-  const nameFor = (participantId: string) =>
-    participants.find((p) => p.id === participantId)?.display_name ?? "Someone";
+  const nameFor = (participantId: string) => {
+    const p = participants.find((p) => p.id === participantId);
+    if (!p) return "Someone";
+    return p.emoji ? `${p.emoji} ${p.display_name}` : p.display_name;
+  };
 
   const offersClosed = submitted
     .map((u) => ({ name: nameFor(u.participant_id), text: formatOffers(u.offers_closed, u.offers_closed_note) }))

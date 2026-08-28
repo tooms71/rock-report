@@ -3,6 +3,7 @@ import type { UpdateFields } from "@/components/WritingForm";
 type ParticipantRow = {
   id: string;
   display_name: string;
+  emoji: string | null;
 };
 
 type UpdateRow = UpdateFields & {
@@ -59,6 +60,7 @@ export function RevealGrid({
           <UpdateCard
             key={p.id}
             name={p.display_name}
+            emoji={p.emoji}
             update={update}
             reactions={update ? reactions.filter((r) => r.target_update_id === update.id) : []}
             myParticipantId={myParticipantId}
@@ -73,6 +75,7 @@ export function RevealGrid({
 
 function UpdateCard({
   name,
+  emoji,
   update,
   reactions,
   myParticipantId,
@@ -80,6 +83,7 @@ function UpdateCard({
   readOnly,
 }: {
   name: string;
+  emoji: string | null;
   update: UpdateRow | undefined;
   reactions: ReactionRow[];
   myParticipantId: string;
@@ -90,6 +94,7 @@ function UpdateCard({
     return (
       <div className="rounded-2xl border border-marmol p-5 dark:border-white/15">
         <p className="font-heading text-xl font-bold text-ardesia dark:text-marmol">
+          {emoji && <span className="mr-1.5">{emoji}</span>}
           {name}
         </p>
         <p className="mt-2 text-sm text-grafite dark:text-marmol/70">
@@ -108,6 +113,7 @@ function UpdateCard({
     <div className="rounded-2xl border border-marmol bg-marmol/60 p-5 dark:border-white/15 dark:bg-white/8">
       <div className="flex items-center gap-2">
         <p className="font-heading text-xl font-bold text-ardesia dark:text-marmol">
+          {emoji && <span className="mr-1.5">{emoji}</span>}
           {name}
         </p>
         {flagCount > 0 && (
