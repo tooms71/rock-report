@@ -8,6 +8,8 @@ import { RockCard } from "@/components/RockCard";
 import { AgendaPanel } from "@/components/AgendaPanel";
 import { RevealGrid, type ReactionRow } from "@/components/RevealGrid";
 import { formatWeekOf, parseWeekOf } from "@/lib/date";
+import { CopyNotesButton } from "@/components/CopyNotesButton";
+import { buildMeetingNotes } from "@/lib/summary";
 import type { UpdateFields } from "@/components/WritingForm";
 
 type SessionRow = {
@@ -60,7 +62,11 @@ export default function SessionDetailPage() {
         { data: updatesData },
         { data: reactionsData },
       ] = await Promise.all([
-        supabase.from("participants").select("id, display_name").eq("session_id", sessionId),
+        supabase
+          .from("participants")
+          .select("id, display_name")
+          .eq("session_id", sessionId)
+          .order("joined_at", { ascending: true }),
         supabase.from("updates").select("*").eq("session_id", sessionId),
         supabase.from("reactions").select("*").eq("session_id", sessionId),
       ]);
@@ -111,6 +117,16 @@ export default function SessionDetailPage() {
         <RockCard compact date={parseWeekOf(session.week_of)} />
       </div>
 
+      <CopyNotesButton
+        getText={() =>
+          buildMeetingNotes({
+            weekLabel: formatWeekOf(session.week_of),
+            participants,
+            updates,
+            reactions,
+          })
+        }
+      />
       <AgendaPanel participants={participants} updates={updates} reactions={reactions} closed={session.phase === "closed"} />
       <section aria-labelledby="updates-heading" className="flex flex-col gap-4">
         <h2

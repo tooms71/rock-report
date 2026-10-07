@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { getMondayOfWeek, formatClock } from "@/lib/date";
+import { getMondayOfWeek, formatClock, formatWeekOf } from "@/lib/date";
 import { RockCard } from "@/components/RockCard";
 import { WritingForm, type UpdateFields } from "@/components/WritingForm";
 import {
@@ -14,6 +14,9 @@ import {
 } from "@/components/RevealGrid";
 import { AgendaPanel } from "@/components/AgendaPanel";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { CopyNotesButton } from "@/components/CopyNotesButton";
+import { SubmittedSummary } from "@/components/SubmittedSummary";
+import { buildMeetingNotes } from "@/lib/summary";
 import { inputClass } from "@/lib/ui";
 import { isShown } from "@/lib/updates";
 import { isSimilarName } from "@/lib/names";
@@ -1018,13 +1021,14 @@ export default function Home() {
           )}
 
           {myUpdate && myUpdate.submitted_at && (
-            <div className="flex flex-col gap-3">
-              <p className="text-sm text-grafite dark:text-marmol/80">
+            <div className="flex flex-col gap-4">
+              <p className="text-base font-semibold text-ardesia dark:text-marmol">
                 Submitted.{" "}
                 {stillWriting > 0
                   ? `Waiting for ${stillWriting} more…`
                   : "Revealing now…"}
               </p>
+              <SubmittedSummary fields={myUpdate} />
               <button
                 type="button"
                 onClick={handleUnsubmit}
@@ -1080,11 +1084,15 @@ export default function Home() {
             <p className="mt-1 text-base text-grafite dark:text-marmol/80">
               {session.phase === "closed"
                 ? `${updatesInCount} ${updatesInCount === 1 ? "update" : "updates"} shared${
-                    flaggedTopicCount > 0
-                      ? ` · ${discussedCount} of ${flaggedTopicCount} flagged ${
+                    discussedCount === 0
+                      ? ""
+                      : leftToDiscuss === 0
+                      ? ` · all ${flaggedTopicCount} flagged ${
                           flaggedTopicCount === 1 ? "topic" : "topics"
                         } discussed`
-                      : ""
+                      : ` · ${discussedCount} flagged ${
+                          discussedCount === 1 ? "topic" : "topics"
+                        } discussed`
                   }. Read-only now. See you next week.`
                 : `${updatesInCount} ${updatesInCount === 1 ? "update" : "updates"} in${
                     flaggedTopicCount > 0
@@ -1094,6 +1102,20 @@ export default function Home() {
                       : ""
                   } · Facilitator: ${facilitatorName}`}
             </p>
+            {session.phase === "closed" && (
+              <div className="mt-4">
+                <CopyNotesButton
+                  getText={() =>
+                    buildMeetingNotes({
+                      weekLabel: formatWeekOf(session.week_of),
+                      participants,
+                      updates: allUpdates,
+                      reactions,
+                    })
+                  }
+                />
+              </div>
+            )}
             {isViewer && (
               <p className="mt-1 text-sm text-grafite dark:text-marmol/80">
                 You&apos;re viewing this week&apos;s updates read-only. Only people who
@@ -1148,7 +1170,13 @@ export default function Home() {
             </p>
             <ConfirmButton
               label="Close session"
-              prompt="Close this session for everyone? Updates become read-only."
+              prompt={`${
+                leftToDiscuss > 0
+                  ? `${leftToDiscuss} flagged ${
+                      leftToDiscuss === 1 ? "topic hasn't" : "topics haven't"
+                    } been discussed. `
+                  : ""
+              }Close this session for everyone? Updates become read-only.`}
               confirmLabel="Yes, close it"
               onConfirm={handleCloseSession}
               disabled={busy}
