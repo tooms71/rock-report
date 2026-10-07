@@ -4,7 +4,6 @@ import type { UpdateFields } from "@/components/WritingForm";
 type ParticipantRow = {
   id: string;
   display_name: string;
-  emoji: string | null;
 };
 
 type UpdateRow = UpdateFields & {
@@ -14,7 +13,7 @@ type UpdateRow = UpdateFields & {
 };
 
 const FLAG_FIELDS: { key: keyof UpdateFields; label: string }[] = [
-  { key: "offers_made", label: "Offers made" },
+  { key: "offers_made", label: "Offers out" },
   ...FLAGGABLE_FIELDS,
 ];
 
@@ -28,11 +27,8 @@ export function AgendaPanel({
   reactions: ReactionRow[];
 }) {
   const submitted = updates.filter((u) => u.submitted_at);
-  const nameFor = (participantId: string) => {
-    const p = participants.find((p) => p.id === participantId);
-    if (!p) return "Someone";
-    return p.emoji ? `${p.emoji} ${p.display_name}` : p.display_name;
-  };
+  const nameFor = (participantId: string) =>
+    participants.find((p) => p.id === participantId)?.display_name ?? "Someone";
 
   const offersClosed = submitted
     .map((u) => ({ name: nameFor(u.participant_id), text: formatOffers(u.offers_closed, u.offers_closed_note) }))
@@ -86,7 +82,9 @@ export function AgendaPanel({
                 <span className="font-semibold text-ardesia dark:text-marmol">
                   {item.name} · {item.label}:
                 </span>{" "}
-                <span className="text-ardesia dark:text-marmol">{item.value}</span>
+                <span className="whitespace-pre-line text-ardesia dark:text-marmol">
+                  {item.value}
+                </span>
               </li>
             ))}
           </ul>

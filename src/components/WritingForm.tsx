@@ -8,8 +8,7 @@ export type UpdateFields = {
   offers_closed: number | null;
   offers_closed_note: string | null;
   roles_opened: string | null;
-  learned_or_surprised: string | null;
-  need_brain_on: string | null;
+  top_priorities: string | null;
   anything_else: string | null;
 };
 
@@ -46,7 +45,7 @@ export function WritingForm({
     <div className="flex flex-col gap-5">
       <div className="grid grid-cols-2 gap-3">
         <NumberField
-          label="Offers made"
+          label="Offers out"
           value={fields.offers_made}
           note={fields.offers_made_note}
           onValueChange={(v) => updateField("offers_made", v)}
@@ -69,24 +68,19 @@ export function WritingForm({
       />
 
       <TextField
-        label="Something I learned or that surprised me"
-        value={fields.learned_or_surprised}
-        onChange={(v) => updateField("learned_or_surprised", v)}
-        rows={3}
-      />
-
-      <TextField
-        label="Where I could use a brain"
-        value={fields.need_brain_on}
-        onChange={(v) => updateField("need_brain_on", v)}
+        label="What are your top priorities of the week?"
+        hint="No more than 3"
+        value={fields.top_priorities}
+        onChange={(v) => updateField("top_priorities", v)}
         rows={3}
       />
 
       <TextField
         label="Anything else?"
+        placeholder="Something you learned, something that surprised you, where you could use another brain, something interesting about your week…"
         value={fields.anything_else}
         onChange={(v) => updateField("anything_else", v)}
-        rows={2}
+        rows={3}
       />
 
       <button
@@ -141,11 +135,15 @@ function NumberField({
 
 function TextField({
   label,
+  hint,
+  placeholder,
   value,
   onChange,
   rows,
 }: {
   label: string;
+  hint?: string;
+  placeholder?: string;
   value: string | null;
   onChange: (value: string | null) => void;
   rows: number;
@@ -155,9 +153,13 @@ function TextField({
       <label className="text-xs font-semibold uppercase tracking-wide text-grafite dark:text-marmol/70">
         {label}
       </label>
+      {hint && (
+        <p className="text-xs text-grafite dark:text-marmol/70">({hint})</p>
+      )}
       <textarea
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value || null)}
+        placeholder={placeholder}
         rows={rows}
         className="resize-none rounded-lg border border-marmol bg-white px-3 py-2 text-ardesia outline-none focus:border-ember"
       />

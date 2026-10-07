@@ -18,14 +18,8 @@ create table if not exists participants (
   id uuid primary key default gen_random_uuid(),
   session_id uuid not null references sessions(id) on delete cascade,
   display_name text not null,
-  emoji text,
   joined_at timestamptz not null default now()
 );
-
--- Safe to re-run: adds the column if this script ran before "emoji" existed.
--- Each person's emoji is remembered client-side (localStorage), same as their
--- name, and just carried along as a plain field on this row.
-alter table if exists participants add column if not exists emoji text;
 
 -- now that participants exists, point sessions.facilitator at it
 alter table sessions
@@ -45,12 +39,18 @@ create table if not exists updates (
   learned_or_surprised text,
   need_brain_on text,
   anything_else text,
+  top_priorities text,
   submitted_at timestamptz,
   unique (session_id, participant_id)
 );
 
--- Safe to re-run: adds the column if this script ran before "anything_else" existed.
+-- learned_or_surprised and need_brain_on are no longer used by the app (their
+-- prompts were folded into "Anything else?") but the columns are kept so old
+-- sessions' data isn't lost.
+
+-- Safe to re-run: adds columns if this script ran before they existed.
 alter table if exists updates add column if not exists anything_else text;
+alter table if exists updates add column if not exists top_priorities text;
 
 -- reactions: emoji reactions on updates or individual fields, including the 🚩 red flag
 create table if not exists reactions (

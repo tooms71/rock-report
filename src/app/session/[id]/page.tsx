@@ -19,7 +19,6 @@ type SessionRow = {
 type ParticipantRow = {
   id: string;
   display_name: string;
-  emoji: string | null;
 };
 
 type UpdateRow = UpdateFields & {
@@ -61,7 +60,7 @@ export default function SessionDetailPage() {
         { data: updatesData },
         { data: reactionsData },
       ] = await Promise.all([
-        supabase.from("participants").select("id, display_name, emoji").eq("session_id", sessionId),
+        supabase.from("participants").select("id, display_name").eq("session_id", sessionId),
         supabase.from("updates").select("*").eq("session_id", sessionId),
         supabase.from("reactions").select("*").eq("session_id", sessionId),
       ]);

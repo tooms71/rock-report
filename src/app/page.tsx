@@ -23,7 +23,6 @@ type ParticipantRow = {
   id: string;
   session_id: string;
   display_name: string;
-  emoji: string | null;
   joined_at: string;
 };
 
@@ -35,7 +34,6 @@ type UpdateRow = UpdateFields & {
 };
 
 const NAME_KEY = "rockreport:name";
-const EMOJI_KEY = "rockreport:emoji";
 
 export default function Home() {
   const [loading, setLoading] = useState(true);
@@ -46,21 +44,17 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [emoji, setEmoji] = useState("");
-
   const [allUpdates, setAllUpdates] = useState<UpdateRow[]>([]);
   const [myUpdate, setMyUpdate] = useState<UpdateRow | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [reactions, setReactions] = useState<ReactionRow[]>([]);
 
-  // Prefill the name/emoji fields from a previous visit.
+  // Prefill the name field from a previous visit.
   useEffect(() => {
-    const savedName = window.localStorage.getItem(NAME_KEY);
-    const savedEmoji = window.localStorage.getItem(EMOJI_KEY);
+    const saved = window.localStorage.getItem(NAME_KEY);
     // localStorage isn't available during SSR, so this has to run after mount.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (savedName) setName(savedName);
-    if (savedEmoji) setEmoji(savedEmoji);
+    if (saved) setName(saved);
   }, []);
 
   // Load this week's session (if any) and its participants.
@@ -355,13 +349,9 @@ export default function Home() {
     }
   }, [session?.phase, session?.id, allUpdates, participants.length]);
 
-  // Resolves the emoji to use for `trimmedName`: reuses their remembered one
-  // (from a past week) if it's free this session, otherwise asks for a fresh
-  // pick by flipping on the emoji field and returning "need-input".
   async function handleCreateSession() {
     const trimmed = name.trim();
     if (!trimmed) return;
-    const trimmedEmoji = emoji.trim() || null;
 
     setBusy(true);
     setError(null);
@@ -377,7 +367,7 @@ export default function Home() {
 
       const { data: participant, error: participantError } = await supabase
         .from("participants")
-        .insert({ session_id: newSession.id, display_name: trimmed, emoji: trimmedEmoji })
+        .insert({ session_id: newSession.id, display_name: trimmed })
         .select()
         .single();
       if (participantError) throw participantError;
@@ -391,7 +381,6 @@ export default function Home() {
       if (updateError) throw updateError;
 
       window.localStorage.setItem(NAME_KEY, trimmed);
-      window.localStorage.setItem(EMOJI_KEY, trimmedEmoji ?? "");
       setSession(updatedSession);
       setParticipants([participant]);
       setMe(participant);
@@ -406,7 +395,6 @@ export default function Home() {
     if (!session) return;
     const trimmed = name.trim();
     if (!trimmed) return;
-    const trimmedEmoji = emoji.trim() || null;
 
     setBusy(true);
     setError(null);
@@ -419,7 +407,7 @@ export default function Home() {
       if (!participant) {
         const { data, error: insertError } = await supabase
           .from("participants")
-          .insert({ session_id: session.id, display_name: trimmed, emoji: trimmedEmoji })
+          .insert({ session_id: session.id, display_name: trimmed })
           .select()
           .single();
         if (insertError) throw insertError;
@@ -428,7 +416,6 @@ export default function Home() {
       }
 
       window.localStorage.setItem(NAME_KEY, trimmed);
-      window.localStorage.setItem(EMOJI_KEY, trimmedEmoji ?? "");
       setMe(participant);
     } catch {
       setError("Couldn't join. Try again.");
@@ -595,7 +582,6 @@ export default function Home() {
             No session yet this week. Start one for the team.
           </p>
           <NameInput name={name} setName={setName} disabled={busy} />
-          <EmojiInput emoji={emoji} setEmoji={setEmoji} disabled={busy} />
           <button
             onClick={handleCreateSession}
             disabled={busy || !name.trim()}
@@ -623,14 +609,12 @@ export default function Home() {
                   onClick={() => setName(p.display_name)}
                   className="rounded-full bg-marmol px-3 py-1 text-sm text-ardesia hover:bg-marmol/70"
                 >
-                  {p.emoji && <span className="mr-1">{p.emoji}</span>}
                   {p.display_name}
                 </button>
               ))}
             </div>
           )}
           <NameInput name={name} setName={setName} disabled={busy} />
-          <EmojiInput emoji={emoji} setEmoji={setEmoji} disabled={busy} />
           <button
             onClick={handleJoin}
             disabled={busy || !name.trim()}
@@ -764,7 +748,6 @@ function PresenceList({
             key={p.id}
             className="rounded-full bg-marmol px-3 py-1 text-sm text-ardesia"
           >
-            {p.emoji && <span className="mr-1">{p.emoji}</span>}
             {p.display_name}
             {p.id === session.facilitator_participant_id && " 🎙️"}
           </span>
@@ -792,33 +775,5 @@ function NameInput({
       disabled={disabled}
       className="rounded-lg border border-marmol bg-white px-3 py-2 text-ardesia outline-none focus:border-ember"
     />
-  );
-}
-
-function EmojiInput({
-  emoji,
-  setEmoji,
-  disabled,
-}: {
-  emoji: string;
-  setEmoji: (value: string) => void;
-  disabled: boolean;
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <input
-        type="text"
-        value={emoji}
-        onChange={(e) => setEmoji(e.target.value)}
-        placeholder="Emoji (optional)"
-        maxLength={8}
-        disabled={disabled}
-        className="w-32 rounded-lg border border-marmol bg-white px-3 py-2 text-center text-xl outline-none focus:border-ember"
-      />
-      <p className="text-xs text-grafite dark:text-marmol/70">
-        Optional — use your keyboard&apos;s emoji picker (Cmd+Ctrl+Space on Mac)
-        if you want one.
-      </p>
-    </div>
   );
 }
