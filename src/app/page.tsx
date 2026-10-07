@@ -1046,6 +1046,11 @@ export default function Home() {
               >
                 Edit my answers
               </button>
+              <p className="-mt-2 text-sm text-grafite dark:text-marmol/80">
+                Editing un-submits you, so submit again when you&apos;re done.
+              </p>
+              {/* A moment for the wait; the Rock stays out of the way while writing. */}
+              <RockCard />
             </div>
           )}
 
@@ -1103,7 +1108,7 @@ export default function Home() {
                       : ` · ${discussedCount} flagged ${
                           discussedCount === 1 ? "topic" : "topics"
                         } discussed`
-                  }. Read-only now. See you next week.`
+                  }`
                 : `${updatesInCount} ${updatesInCount === 1 ? "update" : "updates"} in${
                     flaggedTopicCount > 0
                       ? ` · ${flaggedTopicCount} ${
@@ -1112,6 +1117,11 @@ export default function Home() {
                       : ""
                   } · Facilitator: ${facilitatorName}`}
             </p>
+            {session.phase === "closed" && (
+              <p className="mt-1 text-sm text-grafite dark:text-marmol/80">
+                Read-only now. See you next week.
+              </p>
+            )}
             {session.phase === "closed" && (
               <div className="mt-4">
                 <CopyButton
@@ -1157,7 +1167,7 @@ export default function Home() {
             </h2>
             {session.phase === "reveal" && !isViewer && (
               <p className="-mt-2 text-base text-grafite dark:text-marmol/80">
-                Tap Flag on anything the team should discuss.
+                Click or tap Flag on anything the team should discuss.
               </p>
             )}
             <RevealGrid

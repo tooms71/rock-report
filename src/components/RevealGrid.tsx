@@ -1,4 +1,6 @@
-import type { CSSProperties } from "react";
+"use client";
+
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { UpdateFields } from "@/components/WritingForm";
 import { FlagIcon } from "@/components/Icons";
 import { ClampedText } from "@/components/ClampedText";
@@ -159,8 +161,8 @@ function UpdateCard({
         )}
       </div>
       {lateDraft && (
-        <p className="mt-1 text-xs text-grafite dark:text-marmol/70">
-          Not submitted. Here&apos;s what was saved.
+        <p className="mt-1 text-sm text-grafite dark:text-marmol/70">
+          Draft. Saved, but not submitted.
         </p>
       )}
 
@@ -224,6 +226,15 @@ function FlagButton({
   readOnly: boolean;
   onToggle: () => void;
 }) {
+  const [justAdded, setJustAdded] = useState(false);
+  const cueTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (cueTimer.current) clearTimeout(cueTimer.current);
+    },
+    []
+  );
+
   if (readOnly) {
     if (count === 0) return null;
     return (
@@ -235,10 +246,28 @@ function FlagButton({
     );
   }
 
+  function handleClick() {
+    if (!flaggedByMe) {
+      setJustAdded(true);
+      if (cueTimer.current) clearTimeout(cueTimer.current);
+      cueTimer.current = setTimeout(() => setJustAdded(false), 2500);
+    }
+    onToggle();
+  }
+
   return (
+    <span className="relative inline-flex">
+    {justAdded && (
+      <span
+        role="status"
+        className="arrive pointer-events-none absolute right-0 top-full z-10 mt-1 whitespace-nowrap rounded-lg bg-ember-fill px-2.5 py-1 text-sm font-semibold text-white shadow-[0_4px_12px_-4px_rgba(46,43,43,0.4)]"
+      >
+        Added to agenda
+      </span>
+    )}
     <button
       type="button"
-      onClick={onToggle}
+      onClick={handleClick}
       aria-pressed={flaggedByMe}
       aria-label={`Flag ${subject}’s “${label}” for discussion`}
       className={`inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-sm font-semibold transition max-sm:min-h-11 ${
@@ -251,6 +280,7 @@ function FlagButton({
       <span>{flaggedByMe ? "Flagged" : "Flag"}</span>
       {count > 0 && <span className="tabular-nums">· {count}</span>}
     </button>
+    </span>
   );
 }
 
@@ -339,6 +369,7 @@ function Field({
       </div>
       <ClampedText
         lines={3}
+        label={`${subject}’s “${label}”`}
         className="whitespace-pre-line text-lg [overflow-wrap:anywhere] text-ardesia dark:text-marmol"
       >
         {value}

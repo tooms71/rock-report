@@ -77,7 +77,7 @@ export function AgendaPanel({
             </h3>
             <p className="mt-1 text-base text-grafite dark:text-marmol/80">
               {canFlag
-                ? "Nothing yet. Tap Flag on any card below to add a topic here."
+                ? "Nothing yet. Click or tap Flag on any card below to add a topic here."
                 : "Nothing was flagged for discussion."}
             </p>
           </div>
@@ -119,44 +119,50 @@ export function AgendaPanel({
                     {index + 1}.
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p
-                      className={`flex flex-wrap items-center gap-x-2 text-base font-semibold ${
-                        item.discussed
-                          ? "text-grafite dark:text-marmol/75"
-                          : "text-ardesia dark:text-marmol"
-                      }`}
-                    >
-                      {item.name} · {item.label}
-                    </p>
-                    <ClampedText
-                      lines={5}
-                      className={`whitespace-pre-line text-lg [overflow-wrap:anywhere] sm:text-xl ${
-                        item.discussed
-                          ? "text-grafite line-through decoration-1 dark:text-marmol/75"
-                          : "text-ardesia dark:text-marmol"
-                      }`}
-                    >
-                      {item.value}
-                    </ClampedText>
-                    {(canMarkDiscussed || item.discussed) && (
-                      <div className="mt-2">
-                        {canMarkDiscussed && onToggleDiscussed ? (
-                          <button
-                            type="button"
-                            onClick={() => onToggleDiscussed(item.updateId, item.fieldKey)}
-                            aria-pressed={item.discussed}
-                            aria-label={`${item.discussed ? "Undo discussed:" : "Mark discussed:"} ${item.name}’s “${item.label}”`}
-                            className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-grafite/50 px-3 text-sm font-semibold text-grafite transition hover:border-ember-ink hover:text-ember-ink max-sm:min-h-11 dark:border-white/40 dark:text-marmol/80"
-                          >
-                            <CheckIcon className="size-4" />
-                            {item.discussed ? "Discussed. Undo" : "Mark discussed"}
-                          </button>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-grafite dark:text-marmol/70">
-                            <CheckIcon className="size-4" />
-                            Discussed
+                    {item.discussed ? (
+                      // Done topics fold to one dimmed line; the text is one tap away.
+                      <details className="group">
+                        <summary className="flex min-h-9 cursor-pointer list-none flex-wrap items-center gap-x-2 text-base font-semibold text-grafite dark:text-marmol/75 [&::-webkit-details-marker]:hidden">
+                          <CheckIcon className="size-4 shrink-0" />
+                          <span>
+                            {item.name} · {item.label}
+                            <span className="sr-only">, discussed</span>
                           </span>
-                        )}
+                          <span className="text-sm font-normal text-ember-ink underline underline-offset-2">
+                            <span className="group-open:hidden">Show</span>
+                            <span className="hidden group-open:inline">Hide</span>
+                          </span>
+                        </summary>
+                        <p className="whitespace-pre-line text-base [overflow-wrap:anywhere] text-grafite dark:text-marmol/75">
+                          {item.value}
+                        </p>
+                      </details>
+                    ) : (
+                      <>
+                        <p className="text-base font-semibold text-ardesia dark:text-marmol">
+                          {item.name} · {item.label}
+                        </p>
+                        <ClampedText
+                          lines={5}
+                          label={`${item.name}’s “${item.label}”`}
+                          className="whitespace-pre-line text-lg [overflow-wrap:anywhere] text-ardesia sm:text-xl dark:text-marmol"
+                        >
+                          {item.value}
+                        </ClampedText>
+                      </>
+                    )}
+                    {canMarkDiscussed && onToggleDiscussed && (
+                      <div className="mt-2">
+                        <button
+                          type="button"
+                          onClick={() => onToggleDiscussed(item.updateId, item.fieldKey)}
+                          aria-pressed={item.discussed}
+                          aria-label={`${item.discussed ? "Undo discussed:" : "Mark discussed:"} ${item.name}’s “${item.label}”`}
+                          className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-grafite/50 px-3 text-sm font-semibold text-grafite transition hover:border-ember-ink hover:text-ember-ink max-sm:min-h-11 dark:border-white/40 dark:text-marmol/80"
+                        >
+                          <CheckIcon className="size-4" />
+                          {item.discussed ? "Discussed. Undo" : "Mark discussed"}
+                        </button>
                       </div>
                     )}
                   </div>
@@ -193,6 +199,7 @@ function AgendaGroup({
           <li key={item.id}>
             <ClampedText
               lines={3}
+              label={`${item.name}’s ${title}`}
               className="whitespace-pre-line text-base [overflow-wrap:anywhere] text-ardesia dark:text-marmol"
             >
               <span className="font-semibold">{item.name}</span>

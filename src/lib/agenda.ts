@@ -102,3 +102,31 @@ export function buildAgenda(
 
   return { shown, nameFor, offersClosed, rolesOpened, flagged };
 }
+
+// One-line counts for a session, used on the archive list and detail pages.
+export function summarizeSession(updates: AgendaUpdate[], reactions: ReactionRow[]) {
+  const shownIds = new Set(updates.filter((u) => isShown(u)).map((u) => u.id));
+  const keysFor = (emoji: string) =>
+    new Set(
+      reactions
+        .filter(
+          (r) =>
+            r.target_type === "field" &&
+            r.emoji === emoji &&
+            r.field_key &&
+            shownIds.has(r.target_update_id)
+        )
+        .map((r) => `${r.target_update_id}:${r.field_key}`)
+    );
+  const flagged = keysFor(FLAG_EMOJI);
+  const discussed = [...keysFor(DISCUSSED_EMOJI)].filter((k) => flagged.has(k)).length;
+  return { updates: shownIds.size, flagged: flagged.size, discussed };
+}
+
+export function formatSessionSummary(summary: ReturnType<typeof summarizeSession>): string {
+  const parts = [`${summary.updates} ${summary.updates === 1 ? "update" : "updates"}`];
+  if (summary.flagged > 0) {
+    parts.push(`${summary.flagged} flagged`, `${summary.discussed} discussed`);
+  }
+  return parts.join(" · ");
+}

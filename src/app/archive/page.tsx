@@ -4,6 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { formatWeekOf } from "@/lib/date";
+import {
+  formatSessionSummary,
+  summarizeSession,
+  type AgendaUpdate,
+} from "@/lib/agenda";
+import type { ReactionRow } from "@/components/RevealGrid";
 
 type SessionRow = {
   id: string;
@@ -20,6 +26,7 @@ const PHASE_LABELS: Record<string, string> = {
 
 export default function ArchivePage() {
   const [sessions, setSessions] = useState<SessionRow[] | null>(null);
+  const [summaries, setSummaries] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let active = true;
@@ -31,6 +38,28 @@ export default function ArchivePage() {
         .order("week_of", { ascending: false });
       if (!active) return;
       setSessions(data ?? []);
+
+      // One-line "what happened" per revealed or closed week.
+      const [{ data: updates }, { data: reactions }] = await Promise.all([
+        supabase.from("updates").select("*"),
+        supabase.from("reactions").select("*"),
+      ]);
+      if (!active) return;
+      const result: Record<string, string> = {};
+      for (const s of data ?? []) {
+        if (s.phase !== "reveal" && s.phase !== "closed") continue;
+        result[s.id] = formatSessionSummary(
+          summarizeSession(
+            ((updates ?? []) as (AgendaUpdate & { session_id: string })[]).filter(
+              (u) => u.session_id === s.id
+            ),
+            ((reactions ?? []) as (ReactionRow & { session_id: string })[]).filter(
+              (r) => r.session_id === s.id
+            )
+          )
+        );
+      }
+      setSummaries(result);
     }
 
     load();
@@ -65,12 +94,19 @@ export default function ArchivePage() {
           <Link
             key={s.id}
             href={`/session/${s.id}`}
-            className="flex items-center justify-between rounded-lg border border-marmol px-4 py-3 transition hover:bg-marmol/40 dark:border-white/15 dark:hover:bg-white/5"
+            className="flex items-center justify-between gap-3 rounded-lg border border-grafite/30 px-4 py-3 transition hover:bg-marmol/40 dark:border-white/20 dark:hover:bg-white/5"
           >
-            <span className="font-medium text-ardesia dark:text-marmol">
-              Week of {formatWeekOf(s.week_of)}
+            <span className="min-w-0">
+              <span className="block font-medium text-ardesia dark:text-marmol">
+                Week of {formatWeekOf(s.week_of)}
+              </span>
+              {summaries[s.id] && (
+                <span className="block text-sm text-grafite dark:text-marmol/80">
+                  {summaries[s.id]}
+                </span>
+              )}
             </span>
-            <span className="text-xs uppercase tracking-wide text-grafite dark:text-marmol/60">
+            <span className="shrink-0 text-sm text-grafite dark:text-marmol/70">
               {PHASE_LABELS[s.phase] ?? s.phase}
             </span>
           </Link>

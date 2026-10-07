@@ -10,6 +10,7 @@ import { RevealGrid, type ReactionRow } from "@/components/RevealGrid";
 import { formatWeekOf, parseWeekOf } from "@/lib/date";
 import { CopyButton } from "@/components/CopyButton";
 import { buildMeetingNotes } from "@/lib/summary";
+import { formatSessionSummary, summarizeSession } from "@/lib/agenda";
 import type { UpdateFields } from "@/components/WritingForm";
 
 type SessionRow = {
@@ -107,9 +108,15 @@ export default function SessionDetailPage() {
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-10">
       <div className="flex w-full flex-col gap-6">
         <div className="flex items-center justify-between">
-          <h1 className="font-heading text-2xl font-bold text-ardesia dark:text-marmol">
-            Week of {formatWeekOf(session.week_of)}
-          </h1>
+          <div>
+            <h1 className="font-heading text-2xl font-bold text-ardesia dark:text-marmol">
+              Week of {formatWeekOf(session.week_of)}
+            </h1>
+            <p className="text-sm text-grafite dark:text-marmol/80">
+              {session.phase === "closed" ? "Closed" : "Revealed"} ·{" "}
+              {formatSessionSummary(summarizeSession(updates, reactions))}
+            </p>
+          </div>
           <Link href="/archive" className="text-sm font-semibold text-ember-ink">
             ← Archive
           </Link>

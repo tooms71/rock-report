@@ -10,10 +10,12 @@ export function ClampedText({
   children,
   lines = 3,
   className = "",
+  label,
 }: {
   children: ReactNode;
   lines?: keyof typeof LINE_CLASS;
   className?: string;
+  label?: string;
 }) {
   const ref = useRef<HTMLParagraphElement>(null);
   const [expanded, setExpanded] = useState(false);
@@ -38,6 +40,7 @@ export function ClampedText({
           type="button"
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
+          aria-label={label ? `${expanded ? "Show less" : "Show more"}: ${label}` : undefined}
           className="mt-1 inline-flex min-h-8 items-center text-sm font-semibold text-ember-ink underline underline-offset-2 max-sm:min-h-11"
         >
           {expanded ? "Show less" : "Show more"}
