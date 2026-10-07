@@ -103,7 +103,7 @@ export function AgendaPanel({
               {remaining === 0 ? (
                 <>
                   <CheckIcon className="size-5" />
-                  All discussed. Nice work.
+                  All discussed. No stone left unturned.
                 </>
               ) : (
                 `${remaining} ${closed ? "not discussed" : "left to discuss"}`

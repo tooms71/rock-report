@@ -42,7 +42,7 @@ export function FlagIcon({ className, filled = false }: IconProps) {
 export function CheckIcon({ className }: IconProps) {
   return (
     <Svg className={className}>
-      <path d="M5 12.5l4.5 4.5L19 7" />
+      <path d="M5 12.5l4.5 4.5L19 7" pathLength={1} />
     </Svg>
   );
 }

@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { getMondayOfWeek, formatClock, formatWeekOf } from "@/lib/date";
+import { getMondayOfWeek, formatClock, formatWeekOf, parseWeekOf } from "@/lib/date";
+import { getCurrentRock } from "@/lib/rocks";
 import { RockCard } from "@/components/RockCard";
 import { WritingForm, type UpdateFields } from "@/components/WritingForm";
 import {
@@ -719,6 +720,19 @@ export default function Home() {
     .filter((p) => !allUpdates.some((u) => u.participant_id === p.id && u.submitted_at))
     .map((p) => p.display_name);
   const everyoneSubmitted = participants.length > 0 && notSubmittedNames.length === 0;
+  // The rock rotation is deterministic, so the wrap-up can tease next week's.
+  const nextRockName = session
+    ? getCurrentRock(new Date(parseWeekOf(session.week_of).getTime() + 7 * 24 * 60 * 60 * 1000)).name
+    : "";
+  // Time the team actually saved: how much clock was left when the last person submitted.
+  const lastSubmittedAt = allUpdates.reduce(
+    (latest, u) => (u.submitted_at ? Math.max(latest, new Date(u.submitted_at).getTime()) : latest),
+    0
+  );
+  const spareSeconds =
+    everyoneSubmitted && session?.writing_ends_at && lastSubmittedAt
+      ? Math.floor((new Date(session.writing_ends_at).getTime() - lastSubmittedAt) / 1000)
+      : 0;
   const facilitatorName =
     participants.find((p) => p.id === session?.facilitator_participant_id)?.display_name ??
     "the facilitator";
@@ -1032,11 +1046,14 @@ export default function Home() {
 
           {myUpdate && myUpdate.submitted_at && (
             <div className="flex flex-col gap-4">
-              <p className="text-base font-semibold text-ardesia dark:text-marmol">
+              <p className="flex items-center gap-2 text-base font-semibold text-ardesia dark:text-marmol">
+                <CheckIcon className="draw-check size-5 shrink-0 text-ember-ink" />
+                <span>
                 Submitted.{" "}
                 {stillWriting > 0
                   ? `Waiting for ${stillWriting} more…`
                   : "Revealing now…"}
+                </span>
               </p>
               <SubmittedSummary fields={myUpdate} />
               <button
@@ -1110,6 +1127,8 @@ export default function Home() {
                         } discussed`
                   }`
                 : `${updatesInCount} ${updatesInCount === 1 ? "update" : "updates"} in${
+                    spareSeconds >= 5 ? ` · ${formatClock(spareSeconds)} to spare` : ""
+                  }${
                     flaggedTopicCount > 0
                       ? ` · ${flaggedTopicCount} ${
                           flaggedTopicCount === 1 ? "topic" : "topics"
@@ -1119,7 +1138,7 @@ export default function Home() {
             </p>
             {session.phase === "closed" && (
               <p className="mt-1 text-sm text-grafite dark:text-marmol/80">
-                Read-only now. See you next week.
+                Read-only now. See you next week. Next up: {nextRockName}.
               </p>
             )}
             {session.phase === "closed" && (
@@ -1233,7 +1252,7 @@ function PresenceList({
         {participants.map((p) => (
           <li
             key={p.id}
-            className="rounded-full border border-grafite/20 px-3 py-1 text-sm text-ardesia dark:border-white/20 dark:text-marmol"
+            className="settle rounded-full border border-grafite/20 px-3 py-1 text-sm text-ardesia dark:border-white/20 dark:text-marmol"
           >
             {p.display_name}
             {p.id === session.facilitator_participant_id && (

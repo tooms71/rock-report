@@ -178,3 +178,43 @@ textarea {
     animation: beat-fade 900ms ease-out both;
   }
 }
+
+/* Someone walking in: a small settle, quicker and lighter than the reveal's arrive. */
+@keyframes settle {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.settle {
+  animation: settle 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* A tick that draws itself once, so a submit feels certain. */
+@keyframes draw-check {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.draw-check path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw-check 380ms 80ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settle {
+    animation: arrive-fade 200ms ease-out both;
+  }
+
+  .draw-check path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
