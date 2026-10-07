@@ -135,7 +135,9 @@ function UpdateCard({
   const flagCount = reactions.filter(
     (r) => r.target_type === "field" && r.emoji === FLAG_EMOJI
   ).length;
-  const hasOffers = update.offers_made !== null || update.offers_closed !== null;
+  // Offers closed lives on the agenda, so the card only carries Offers out, and only
+  // when there is something to discuss.
+  const hasOffers = !!update.offers_made;
 
   return (
     <article
@@ -157,17 +159,12 @@ function UpdateCard({
       </div>
       {lateDraft && (
         <p className="mt-1 text-xs text-grafite dark:text-marmol/70">
-          Time ran out. Here&apos;s what was saved.
+          Not submitted. Here&apos;s what was saved.
         </p>
       )}
 
       {hasOffers && (
-        <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-4">
-          <Stat
-            label="Offers closed"
-            value={update.offers_closed}
-            note={update.offers_closed_note}
-          />
+        <div className="mt-4">
           <Stat
             label="Offers out"
             value={update.offers_made}
@@ -237,10 +234,10 @@ function FlagButton({
       onClick={onToggle}
       aria-pressed={flaggedByMe}
       aria-label={`Flag ${subject}’s “${label}” for discussion`}
-      className={`inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition max-sm:min-h-11 ${
+      className={`inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-sm font-semibold transition max-sm:min-h-11 ${
         flaggedByMe
           ? "border-ember-fill bg-ember-fill text-white"
-          : "border-grafite/30 text-grafite hover:border-ember-ink hover:text-ember-ink dark:border-white/25 dark:text-marmol/80"
+          : "border-transparent text-grafite hover:border-ember-ink hover:text-ember-ink dark:text-marmol/80"
       }`}
     >
       <FlagIcon filled={flaggedByMe} className="size-3.5" />
@@ -270,7 +267,7 @@ function Stat({
 }) {
   return (
     <div>
-      <p className="text-sm font-semibold text-grafite dark:text-marmol/70">
+      <p className="text-sm font-semibold text-grafite dark:text-marmol/80">
         {label}
       </p>
       {value === null ? (
@@ -278,7 +275,7 @@ function Stat({
           —
         </p>
       ) : (
-        <p className="tabular-nums [overflow-wrap:anywhere] text-ardesia dark:text-marmol">
+        <p className="text-lg tabular-nums [overflow-wrap:anywhere] text-ardesia dark:text-marmol">
           {value}
           {note && <span className="text-grafite dark:text-marmol/80"> · {note}</span>}
         </p>
@@ -321,7 +318,7 @@ function Field({
   return (
     <div>
       <div className="flex min-h-8 items-center justify-between gap-2">
-        <p className="text-sm font-semibold text-grafite dark:text-marmol/70">
+        <p className="text-sm font-semibold text-grafite dark:text-marmol/80">
           {label}
         </p>
         <FlagButton
@@ -333,7 +330,7 @@ function Field({
           onToggle={onToggleFlag}
         />
       </div>
-      <p className="whitespace-pre-line [overflow-wrap:anywhere] text-ardesia dark:text-marmol">{value}</p>
+      <p className="whitespace-pre-line text-lg [overflow-wrap:anywhere] text-ardesia dark:text-marmol">{value}</p>
     </div>
   );
 }

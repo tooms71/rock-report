@@ -111,7 +111,7 @@ export default function SessionDetailPage() {
         <RockCard compact date={parseWeekOf(session.week_of)} />
       </div>
 
-      <AgendaPanel participants={participants} updates={updates} reactions={reactions} />
+      <AgendaPanel participants={participants} updates={updates} reactions={reactions} closed={session.phase === "closed"} />
       <section aria-labelledby="updates-heading" className="flex flex-col gap-4">
         <h2
           id="updates-heading"

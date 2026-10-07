@@ -24,7 +24,7 @@ export function RockCard({
 
   if (compact) {
     return (
-      <details className="marble rounded-xl border border-grafite/20 px-4 dark:border-white/15">
+      <details className="rounded-xl border border-grafite/20 bg-stone px-4 dark:border-white/15 dark:bg-white/[0.08]">
         <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
           <span className="flex items-center gap-2 font-heading text-lg font-bold text-ardesia dark:text-marmol">
             <RockIcon className="size-5 shrink-0 text-ember-ink" />

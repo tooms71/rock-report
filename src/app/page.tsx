@@ -56,7 +56,18 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<SessionRow | null>(null);
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
-  const [me, setMe] = useState<ParticipantRow | null>(null);
+  const [chosenMe, setChosenMe] = useState<ParticipantRow | null>(null);
+  const [savedName, setSavedName] = useState("");
+  const [optedOut, setOptedOut] = useState(false);
+  // If this browser remembers a name that's already in the session (a refresh, a
+  // laptop waking up), put the person straight back in; "Not you?" undoes it.
+  const autoMe =
+    !optedOut && savedName
+      ? participants.find(
+          (p) => p.display_name.trim().toLowerCase() === savedName.trim().toLowerCase()
+        ) ?? null
+      : null;
+  const me = chosenMe ?? autoMe;
   const [name, setName] = useState("");
   // Set when the typed name is one typo away from someone already in the session.
   const [nameSuggestion, setNameSuggestion] = useState<ParticipantRow | null>(null);
@@ -71,6 +82,8 @@ export default function Home() {
   const [allUpdates, setAllUpdates] = useState<UpdateRow[]>([]);
   const [myUpdate, setMyUpdate] = useState<UpdateRow | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  // Highest remaining time seen, so the progress bar stays accurate after "+1 min".
+  const [timerCeiling, setTimerCeiling] = useState(WRITING_DURATION_MS / 1000);
   const [reactions, setReactions] = useState<ReactionRow[]>([]);
 
   // Prefill the name field from a previous visit.
@@ -79,6 +92,7 @@ export default function Home() {
     // localStorage isn't available during SSR, so this has to run after mount.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (saved) setName(saved);
+    if (saved) setSavedName(saved);
   }, []);
 
   // Load this week's session (if any) and its participants.
@@ -348,7 +362,9 @@ export default function Home() {
 
     const endsAt = new Date(session.writing_ends_at).getTime();
     function tick() {
-      setSecondsLeft(Math.max(0, (endsAt - Date.now()) / 1000));
+      const remaining = Math.max(0, (endsAt - Date.now()) / 1000);
+      setSecondsLeft(remaining);
+      setTimerCeiling((ceiling) => (remaining > ceiling ? remaining : ceiling));
     }
     tick();
     const interval = setInterval(tick, 250);
@@ -407,7 +423,7 @@ export default function Home() {
       window.localStorage.setItem(NAME_KEY, trimmed);
       setSession(updatedSession);
       setParticipants([participant]);
-      setMe(participant);
+      setChosenMe(participant);
     } catch {
       setError(CONNECTION_ERROR);
     } finally {
@@ -441,7 +457,7 @@ export default function Home() {
       let participant = existing ?? null;
       if (!participant && (session.phase === "reveal" || session.phase === "closed")) {
         window.localStorage.setItem(NAME_KEY, trimmed);
-        setMe({ id: VIEWER_ID, session_id: session.id, display_name: trimmed, joined_at: "" });
+        setChosenMe({ id: VIEWER_ID, session_id: session.id, display_name: trimmed, joined_at: "" });
         return;
       }
       if (!participant) {
@@ -456,7 +472,7 @@ export default function Home() {
       }
 
       window.localStorage.setItem(NAME_KEY, trimmed);
-      setMe(participant);
+      setChosenMe(participant);
     } catch {
       setError(CONNECTION_ERROR);
     } finally {
@@ -500,6 +516,28 @@ export default function Home() {
     } finally {
       setBusy(false);
     }
+  }
+
+  // Facilitator gives the whole room one more minute (everyone's clock is derived
+  // from writing_ends_at, so this reaches every screen at once).
+  async function handleAddMinute() {
+    if (!session?.writing_ends_at || (secondsLeft !== null && secondsLeft <= 0)) return;
+    setError(null);
+    const extended = new Date(
+      new Date(session.writing_ends_at).getTime() + 60 * 1000
+    ).toISOString();
+    const { data, error: extendError } = await supabase
+      .from("sessions")
+      .update({ writing_ends_at: extended })
+      .eq("id", session.id)
+      .eq("phase", "writing")
+      .select()
+      .single();
+    if (extendError) {
+      setError(CONNECTION_ERROR);
+      return;
+    }
+    setSession(data);
   }
 
   async function handleCloseSession() {
@@ -669,20 +707,31 @@ export default function Home() {
   const lastToSubmit = participants.length > 1 && !iHaveSubmitted && stillWriting === 1;
   // ...versus everyone with something to show once the reveal happens (drafts count).
   const updatesInCount = allUpdates.filter(isShown).length;
+  const notSubmittedNames = participants
+    .filter((p) => !allUpdates.some((u) => u.participant_id === p.id && u.submitted_at))
+    .map((p) => p.display_name);
+  const everyoneSubmitted = participants.length > 0 && notSubmittedNames.length === 0;
   const facilitatorName =
     participants.find((p) => p.id === session?.facilitator_participant_id)?.display_name ??
     "the facilitator";
   const showingResults =
     !!me && (session?.phase === "reveal" || session?.phase === "closed");
-  const flaggedTopicCount = new Set(
+  const flaggedKeys = new Set(
     reactions
       .filter((r) => r.target_type === "field" && r.emoji === FLAG_EMOJI)
       .map((r) => `${r.target_update_id}:${r.field_key}`)
-  ).size;
+  );
+  const discussedKeys = new Set(
+    reactions
+      .filter((r) => r.target_type === "field" && r.emoji === DISCUSSED_EMOJI)
+      .map((r) => `${r.target_update_id}:${r.field_key}`)
+  );
+  const flaggedTopicCount = flaggedKeys.size;
+  const discussedCount = [...flaggedKeys].filter((k) => discussedKeys.has(k)).length;
+  const leftToDiscuss = flaggedTopicCount - discussedCount;
 
-  const secondsTotal = WRITING_DURATION_MS / 1000;
   const timerRatio =
-    secondsLeft === null ? 1 : Math.min(1, Math.max(0, secondsLeft / secondsTotal));
+    secondsLeft === null ? 1 : Math.min(1, Math.max(0, secondsLeft / timerCeiling));
   const timerUrgent = secondsLeft !== null && secondsLeft <= 30;
   const countdownBeat =
     secondsLeft !== null && secondsLeft > 0 && secondsLeft <= 3
@@ -737,16 +786,35 @@ export default function Home() {
           <h1 className="font-heading text-3xl font-bold text-ardesia dark:text-marmol">
             Rock Report
           </h1>
-          <Link
-            href="/archive"
-            className="inline-flex min-h-11 items-center text-sm font-semibold text-ember-ink"
-          >
-            Past sessions →
-          </Link>
+          {!(me && session?.phase === "writing") && (
+            <Link
+              href="/archive"
+              className="inline-flex min-h-11 items-center text-sm font-semibold text-ember-ink"
+            >
+              Past sessions →
+            </Link>
+          )}
         </div>
 
-        {!showingResults && <RockCard />}
+        {/* The rock is for the doorway; during the 3-minute timer the form comes first. */}
+        {!showingResults && session?.phase !== "writing" && <RockCard />}
       </div>
+
+      {me && !isViewer && (
+        <p className="-mt-3 text-sm text-grafite dark:text-marmol/70">
+          You&apos;re {me.display_name}.{" "}
+          <button
+            type="button"
+            onClick={() => {
+              setChosenMe(null);
+              setOptedOut(true);
+            }}
+            className="font-semibold text-ember-ink underline underline-offset-2"
+          >
+            Not you?
+          </button>
+        </p>
+      )}
 
       {error && (
         <p role="alert" className="text-sm font-semibold text-ember-ink">
@@ -871,7 +939,7 @@ export default function Home() {
       {session && me && session.phase === "writing" && (
         <div className="flex flex-col gap-5">
           {/* The room, at a glance: the clock and who has finished. Stays in view. */}
-          <div className="sticky top-0 z-10 -mx-6 border-b border-grafite/20 bg-background px-6 pb-3 pt-3 dark:border-white/15">
+          <div className="sticky top-0 z-10 border-b border-grafite/20 bg-background pb-3 pt-3 dark:border-white/15">
             <div className="flex items-end justify-between gap-4">
               <p
                 role="timer"
@@ -882,9 +950,20 @@ export default function Home() {
               >
                 {secondsLeft !== null ? formatClock(secondsLeft) : "3:00"}
               </p>
-              <p className="pb-1 text-sm text-grafite dark:text-marmol/80">
-                {submittedCount} of {participants.length} submitted
-              </p>
+              <div className="flex items-center gap-3 pb-1">
+                <p className="text-sm text-grafite dark:text-marmol/80">
+                  {submittedCount} of {participants.length} submitted
+                </p>
+                {isFacilitator && (
+                  <button
+                    type="button"
+                    onClick={handleAddMinute}
+                    className="min-h-9 rounded-lg border border-grafite/50 px-3 text-sm font-semibold text-ardesia transition hover:border-ember-ink hover:text-ember-ink dark:border-white/40 dark:text-marmol"
+                  >
+                    +1 min
+                  </button>
+                )}
+              </div>
             </div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-grafite/15 dark:bg-white/15">
               <div
@@ -958,12 +1037,11 @@ export default function Home() {
 
           {isFacilitator && (
             <div className="mt-4 flex flex-col gap-2 border-t border-grafite/20 pt-5 dark:border-white/15">
-              <p className="text-sm text-grafite dark:text-marmol/70">
-                Facilitator controls
-              </p>
               <ConfirmButton
                 label="End writing and reveal"
-                prompt={`${stillWriting} of ${participants.length} haven't submitted yet. Reveal everyone's updates now?`}
+                prompt={`${notSubmittedNames.join(", ")} ${
+                  notSubmittedNames.length === 1 ? "hasn't" : "haven't"
+                } submitted yet. Reveal everyone's updates now?`}
                 confirmLabel="Yes, reveal"
                 needsConfirm={submittedCount < participants.length}
                 onConfirm={handleRevealNow}
@@ -991,15 +1069,23 @@ export default function Home() {
 
       {showingResults && session && me && (
         <div className="flex flex-col gap-8">
-          <header
-            className={session.phase === "reveal" ? "arrive" : undefined}
-          >
+          <header className="arrive">
             <h2 className="font-heading text-3xl font-bold text-ardesia dark:text-marmol">
-              {session.phase === "closed" ? "Session closed" : "Everyone’s in"}
-            </h2>
-            <p className="mt-1 text-sm text-grafite dark:text-marmol/80">
               {session.phase === "closed"
-                ? "This session has ended. Here's what was shared, read-only."
+                ? "That’s a wrap"
+                : everyoneSubmitted
+                ? "Everyone’s in"
+                : "Updates are in"}
+            </h2>
+            <p className="mt-1 text-base text-grafite dark:text-marmol/80">
+              {session.phase === "closed"
+                ? `${updatesInCount} ${updatesInCount === 1 ? "update" : "updates"} shared${
+                    flaggedTopicCount > 0
+                      ? ` · ${discussedCount} of ${flaggedTopicCount} flagged ${
+                          flaggedTopicCount === 1 ? "topic" : "topics"
+                        } discussed`
+                      : ""
+                  }. Read-only now. See you next week.`
                 : `${updatesInCount} ${updatesInCount === 1 ? "update" : "updates"} in${
                     flaggedTopicCount > 0
                       ? ` · ${flaggedTopicCount} ${
@@ -1021,6 +1107,8 @@ export default function Home() {
             updates={allUpdates}
             reactions={reactions}
             canMarkDiscussed={isFacilitator && session.phase === "reveal"}
+            canFlag={!isViewer && session.phase === "reveal"}
+            closed={session.phase === "closed"}
             onToggleDiscussed={handleToggleDiscussed}
             animate={session.phase === "reveal"}
           />
@@ -1045,16 +1133,28 @@ export default function Home() {
 
           <RockCard compact />
 
-          {session.phase === "reveal" && isFacilitator && (
+        </div>
+      )}
+
+      {showingResults && session?.phase === "reveal" && isFacilitator && (
+        <div className="sticky bottom-0 z-10 -mx-6 -mb-10 border-t border-grafite/20 bg-background px-6 py-3 dark:border-white/15">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
+            <p className="text-base font-semibold text-ardesia dark:text-marmol">
+              {flaggedTopicCount === 0
+                ? "No topics flagged yet"
+                : leftToDiscuss === 0
+                ? "All topics discussed"
+                : `${leftToDiscuss} left to discuss`}
+            </p>
             <ConfirmButton
               label="Close session"
               prompt="Close this session for everyone? Updates become read-only."
               confirmLabel="Yes, close it"
               onConfirm={handleCloseSession}
               disabled={busy}
-              className="min-h-11 self-start rounded-lg bg-ardesia px-4 py-2 font-semibold text-white transition disabled:opacity-50 dark:bg-marmol dark:text-ardesia"
+              className="min-h-11 rounded-lg bg-ardesia px-4 py-2 font-semibold text-white transition disabled:opacity-50 dark:bg-marmol dark:text-ardesia"
             />
-          )}
+          </div>
         </div>
       )}
     </main>

@@ -114,7 +114,7 @@ export function WritingForm({
         }
       }}
     >
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <NumberField
           label="Offers closed"
           value={fields.offers_closed}
@@ -148,7 +148,7 @@ export function WritingForm({
 
       <TextField
         label="Anything else?"
-        placeholder="Something you learned, something that surprised you, where you could use another brain, something interesting about your week…"
+        hint="Something you learned or that surprised you, where you could use another brain, something interesting about your week"
         value={fields.anything_else}
         onChange={(v) => updateField("anything_else", v)}
         rows={3}
@@ -156,8 +156,8 @@ export function WritingForm({
 
       <div className="flex flex-col gap-2">
         {lastToSubmit && (
-          <p className="text-sm font-semibold text-ember-ink">
-            You&apos;re the last one still writing. Submitting reveals everyone&apos;s
+          <p className="text-sm text-grafite dark:text-marmol/80">
+            You&apos;re the last one still writing, so submitting reveals everyone&apos;s
             updates right away.
           </p>
         )}

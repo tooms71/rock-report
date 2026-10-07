@@ -34,6 +34,8 @@ export function AgendaPanel({
   updates,
   reactions,
   canMarkDiscussed = false,
+  canFlag = false,
+  closed = false,
   onToggleDiscussed,
   animate = false,
 }: {
@@ -41,6 +43,8 @@ export function AgendaPanel({
   updates: UpdateRow[];
   reactions: ReactionRow[];
   canMarkDiscussed?: boolean;
+  canFlag?: boolean;
+  closed?: boolean;
   onToggleDiscussed?: (updateId: string, fieldKey: string) => void;
   animate?: boolean;
 }) {
@@ -90,6 +94,7 @@ export function AgendaPanel({
   );
 
   const remaining = flagged.filter((f) => !f.discussed).length;
+  const upNextKey = closed ? null : (flagged.find((f) => !f.discussed)?.itemKey ?? null);
   const hasInfo = offersClosed.length > 0 || rolesOpened.length > 0;
 
   return (
@@ -120,7 +125,9 @@ export function AgendaPanel({
 
           {flagged.length === 0 ? (
             <p className="mt-3 text-base text-grafite dark:text-marmol/80">
-              Nothing flagged yet. Use Flag on any card to add a topic here.
+              {canFlag
+                ? "Nothing flagged yet. Tap Flag on any card below to put a topic here."
+                : "Nothing was flagged for discussion."}
             </p>
           ) : (
             <>
@@ -137,7 +144,7 @@ export function AgendaPanel({
                     All discussed. Nice work.
                   </>
                 ) : (
-                  `${remaining} left to discuss`
+                  `${remaining} ${closed ? "not discussed" : "left to discuss"}`
                 )}
               </p>
               <ol className="mt-5 flex flex-col gap-6">
@@ -151,18 +158,23 @@ export function AgendaPanel({
                     </span>
                     <div className="min-w-0 flex-1">
                       <p
-                        className={`text-base font-semibold ${
+                        className={`flex flex-wrap items-center gap-x-2 text-base font-semibold ${
                           item.discussed
-                            ? "text-grafite dark:text-marmol/60"
+                            ? "text-grafite dark:text-marmol/75"
                             : "text-ardesia dark:text-marmol"
                         }`}
                       >
                         {item.name} · {item.label}
+                        {item.itemKey === upNextKey && (
+                          <span className="rounded-full bg-ember-fill px-2 py-0.5 text-xs font-semibold text-white">
+                            Up next
+                          </span>
+                        )}
                       </p>
                       <p
                         className={`whitespace-pre-line text-lg [overflow-wrap:anywhere] sm:text-xl ${
                           item.discussed
-                            ? "text-grafite line-through decoration-1 dark:text-marmol/60"
+                            ? "text-grafite line-through decoration-1 dark:text-marmol/75"
                             : "text-ardesia dark:text-marmol"
                         }`}
                       >
