@@ -35,7 +35,6 @@ export function AgendaPanel({
   const { offersClosed, rolesOpened, flagged } = buildAgenda(participants, updates, reactions);
 
   const remaining = flagged.filter((f) => !f.discussed).length;
-  const upNextKey = closed ? null : (flagged.find((f) => !f.discussed)?.itemKey ?? null);
   const hasInfo = offersClosed.length > 0 || rolesOpened.length > 0;
 
   const infoGroups = (
@@ -128,11 +127,6 @@ export function AgendaPanel({
                       }`}
                     >
                       {item.name} · {item.label}
-                      {item.itemKey === upNextKey && (
-                        <span className="rounded-full bg-ember-fill px-2 py-0.5 text-xs font-semibold text-white">
-                          Up next
-                        </span>
-                      )}
                     </p>
                     <ClampedText
                       lines={5}
