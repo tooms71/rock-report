@@ -6,10 +6,24 @@ import { supabase } from "@/lib/supabase";
 import { getMondayOfWeek, formatClock } from "@/lib/date";
 import { RockCard } from "@/components/RockCard";
 import { WritingForm, type UpdateFields } from "@/components/WritingForm";
-import { RevealGrid, type ReactionRow } from "@/components/RevealGrid";
+import {
+  DISCUSSED_EMOJI,
+  FLAG_EMOJI,
+  RevealGrid,
+  type ReactionRow,
+} from "@/components/RevealGrid";
 import { AgendaPanel } from "@/components/AgendaPanel";
+import { ConfirmButton } from "@/components/ConfirmButton";
+import { inputClass } from "@/lib/ui";
 
 const WRITING_DURATION_MS = 3 * 60 * 1000;
+
+// Someone who opens a session that's already revealed or closed just reads it;
+// they aren't added as a participant (that would create an empty card for them).
+const VIEWER_ID = "viewer";
+
+const CONNECTION_ERROR =
+  "Couldn't reach the database. Check your connection (or whether Supabase is paused), then try again.";
 
 type SessionRow = {
   id: string;
@@ -385,7 +399,7 @@ export default function Home() {
       setParticipants([participant]);
       setMe(participant);
     } catch {
-      setError("Couldn't create the session. Try again.");
+      setError(CONNECTION_ERROR);
     } finally {
       setBusy(false);
     }
@@ -404,6 +418,11 @@ export default function Home() {
       );
 
       let participant = existing ?? null;
+      if (!participant && (session.phase === "reveal" || session.phase === "closed")) {
+        window.localStorage.setItem(NAME_KEY, trimmed);
+        setMe({ id: VIEWER_ID, session_id: session.id, display_name: trimmed, joined_at: "" });
+        return;
+      }
       if (!participant) {
         const { data, error: insertError } = await supabase
           .from("participants")
@@ -418,7 +437,7 @@ export default function Home() {
       window.localStorage.setItem(NAME_KEY, trimmed);
       setMe(participant);
     } catch {
-      setError("Couldn't join. Try again.");
+      setError(CONNECTION_ERROR);
     } finally {
       setBusy(false);
     }
@@ -440,7 +459,7 @@ export default function Home() {
       if (startError) throw startError;
       setSession(data);
     } catch {
-      setError("Couldn't start writing. Try again.");
+      setError(CONNECTION_ERROR);
     } finally {
       setBusy(false);
     }
@@ -472,32 +491,41 @@ export default function Home() {
       if (closeError) throw closeError;
       setSession(data);
     } catch {
-      setError("Couldn't close the session. Try again.");
+      setError(CONNECTION_ERROR);
     } finally {
       setBusy(false);
     }
   }
 
-  async function handleAutosave(fields: UpdateFields) {
-    if (!myUpdate) return;
-    const { data } = await supabase
+  // Returns whether the save landed, so the form can show "Saved" or an error.
+  // It deliberately doesn't touch myUpdate: a slow autosave response arriving after
+  // Submit would otherwise flip the page back to the editable form.
+  async function handleAutosave(fields: UpdateFields): Promise<boolean> {
+    if (!myUpdate) return false;
+    const { error: saveError } = await supabase
       .from("updates")
       .update(fields)
-      .eq("id", myUpdate.id)
-      .select()
-      .single();
-    if (data) setMyUpdate(data);
+      .eq("id", myUpdate.id);
+    return !saveError;
   }
 
-  async function handleSubmitUpdate() {
+  // Submit writes the final field values and the submitted flag in one request.
+  async function handleSubmitUpdate(fields: UpdateFields) {
     if (!myUpdate) return;
-    const { data } = await supabase
+    setBusy(true);
+    setError(null);
+    const { data, error: submitError } = await supabase
       .from("updates")
-      .update({ submitted_at: new Date().toISOString() })
+      .update({ ...fields, submitted_at: new Date().toISOString() })
       .eq("id", myUpdate.id)
       .select()
       .single();
-    if (data) setMyUpdate(data);
+    setBusy(false);
+    if (submitError || !data) {
+      setError("Couldn't submit your update. Your text is still here, so try again.");
+      return;
+    }
+    setMyUpdate(data);
   }
 
   async function handleUnsubmit() {
@@ -511,15 +539,50 @@ export default function Home() {
     if (data) setMyUpdate(data);
   }
 
+  // Facilitator marks a flagged topic as discussed (a ✅ reaction on the same field),
+  // which syncs live to everyone like any other reaction.
+  async function handleToggleDiscussed(updateId: string, fieldKey: string) {
+    if (!me || !session || me.id !== session.facilitator_participant_id) return;
+
+    const existing = reactions.filter(
+      (r) =>
+        r.target_type === "field" &&
+        r.target_update_id === updateId &&
+        r.field_key === fieldKey &&
+        r.emoji === DISCUSSED_EMOJI
+    );
+
+    if (existing.length > 0) {
+      const ids = existing.map((r) => r.id);
+      await supabase.from("reactions").delete().in("id", ids);
+      setReactions((prev) => prev.filter((r) => !ids.includes(r.id)));
+      return;
+    }
+
+    const { data } = await supabase
+      .from("reactions")
+      .insert({
+        session_id: session.id,
+        target_type: "field",
+        target_update_id: updateId,
+        field_key: fieldKey,
+        emoji: DISCUSSED_EMOJI,
+        participant_id: me.id,
+      })
+      .select()
+      .single();
+    if (data) setReactions((prev) => [...prev, data]);
+  }
+
   async function handleToggleFlag(updateId: string, fieldKey: string) {
-    if (!me || !session) return;
+    if (!me || !session || me.id === VIEWER_ID) return;
 
     const existing = reactions.find(
       (r) =>
         r.target_type === "field" &&
         r.target_update_id === updateId &&
         r.field_key === fieldKey &&
-        r.emoji === "🚩" &&
+        r.emoji === FLAG_EMOJI &&
         r.participant_id === me.id
     );
 
@@ -536,7 +599,7 @@ export default function Home() {
         target_type: "field",
         target_update_id: updateId,
         field_key: fieldKey,
-        emoji: "🚩",
+        emoji: FLAG_EMOJI,
         participant_id: me.id,
       })
       .select()
@@ -547,67 +610,126 @@ export default function Home() {
   if (loading) {
     return (
       <main className="flex flex-1 items-center justify-center">
-        <p className="text-grafite">Loading…</p>
+        <p className="text-grafite dark:text-marmol/70">Loading…</p>
       </main>
     );
   }
 
   const isFacilitator = !!me && me.id === session?.facilitator_participant_id;
+  const isViewer = me?.id === VIEWER_ID;
   const submittedCount = allUpdates.filter((u) => u.submitted_at).length;
+  const facilitatorName =
+    participants.find((p) => p.id === session?.facilitator_participant_id)?.display_name ??
+    "the facilitator";
+  const showingResults =
+    !!me && (session?.phase === "reveal" || session?.phase === "closed");
+  const flaggedTopicCount = new Set(
+    reactions
+      .filter((r) => r.target_type === "field" && r.emoji === FLAG_EMOJI)
+      .map((r) => `${r.target_update_id}:${r.field_key}`)
+  ).size;
 
-  const isRevealing = session?.phase === "reveal" || session?.phase === "closed";
+  const secondsTotal = WRITING_DURATION_MS / 1000;
+  const timerRatio =
+    secondsLeft === null ? 1 : Math.min(1, Math.max(0, secondsLeft / secondsTotal));
+  const timerUrgent = secondsLeft !== null && secondsLeft <= 30;
+  const timerAnnouncement =
+    secondsLeft === null
+      ? ""
+      : secondsLeft <= 10
+      ? "10 seconds left"
+      : secondsLeft <= 30
+      ? "30 seconds left"
+      : secondsLeft <= 60
+      ? "1 minute left"
+      : "";
+
+  const nameIsParticipant = participants.some(
+    (p) => p.display_name.trim().toLowerCase() === name.trim().toLowerCase()
+  );
+  const readOnlyJoin =
+    !!session &&
+    (session.phase === "reveal" || session.phase === "closed") &&
+    !nameIsParticipant;
+
+  const joinCopy = !session
+    ? ""
+    : session.phase === "closed"
+    ? "This week's session has ended. Enter your name to see what was shared."
+    : session.phase === "reveal"
+    ? "This week's updates are already revealed. Enter your name to read them."
+    : session.phase === "writing"
+    ? "Writing is under way. Join now to add your update before time's up."
+    : participants.length === 0
+    ? "This week's session is open. Be the first to join."
+    : "This week's session is open. Join in.";
+
+  const primaryButton =
+    "min-h-11 rounded-lg bg-ember-fill px-4 py-2 font-semibold text-white transition disabled:opacity-50";
 
   return (
     <main
       className={`mx-auto flex w-full flex-1 flex-col gap-6 px-6 py-10 ${
-        isRevealing ? "max-w-4xl" : "max-w-md"
+        showingResults ? "max-w-6xl" : "max-w-md"
       }`}
     >
-      <div className="mx-auto flex w-full max-w-md flex-col gap-6">
+      <div
+        className={`flex w-full flex-col gap-6 ${
+          showingResults ? "" : "mx-auto max-w-md"
+        }`}
+      >
         <div className="flex items-center justify-between">
           <h1 className="font-heading text-3xl font-bold text-ardesia dark:text-marmol">
             Rock Report
           </h1>
-          <Link href="/archive" className="text-sm font-semibold text-ember">
+          <Link href="/archive" className="text-sm font-semibold text-ember-ink">
             Past sessions →
           </Link>
         </div>
 
-        <RockCard />
+        <RockCard compact={showingResults} />
       </div>
 
       {!session && (
-        <div className="flex flex-col gap-3">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleCreateSession();
+          }}
+          className="flex flex-col gap-3"
+        >
           <p className="text-sm text-grafite dark:text-marmol/80">
-            No session yet this week. Start one for the team.
+            No session yet this week. Starting one makes you the facilitator: you
+            start the timer and control the reveal.
           </p>
           <NameInput name={name} setName={setName} disabled={busy} />
           <button
-            onClick={handleCreateSession}
+            type="submit"
             disabled={busy || !name.trim()}
-            className="rounded-lg bg-ember px-4 py-2 font-semibold text-white transition disabled:opacity-50"
+            className={primaryButton}
           >
             Create this week&apos;s session
           </button>
-        </div>
+        </form>
       )}
 
       {session && !me && (
-        <div className="flex flex-col gap-3">
-          <p className="text-sm text-grafite dark:text-marmol/80">
-            {session.phase === "closed"
-              ? "This week's session has ended. Join to see what was shared."
-              : participants.length === 0
-              ? "This week's session is open. Be the first to join."
-              : "This week's session is open — join in."}
-          </p>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleJoin();
+          }}
+          className="flex flex-col gap-3"
+        >
+          <p className="text-sm text-grafite dark:text-marmol/80">{joinCopy}</p>
           {participants.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {participants.map((p) => (
                 <button
+                  type="button"
                   key={p.id}
                   onClick={() => setName(p.display_name)}
-                  className="rounded-full bg-marmol px-3 py-1 text-sm text-ardesia hover:bg-marmol/70"
+                  className="min-h-9 rounded-full bg-marmol px-3 py-1 text-sm text-ardesia hover:bg-marmol/70"
                 >
                   {p.display_name}
                 </button>
@@ -616,29 +738,36 @@ export default function Home() {
           )}
           <NameInput name={name} setName={setName} disabled={busy} />
           <button
-            onClick={handleJoin}
+            type="submit"
             disabled={busy || !name.trim()}
-            className="rounded-lg bg-ember px-4 py-2 font-semibold text-white transition disabled:opacity-50"
+            className={primaryButton}
           >
-            Join
+            {readOnlyJoin ? "View updates" : "Join"}
           </button>
-        </div>
+        </form>
       )}
 
       {session && me && session.phase === "lobby" && (
         <div className="flex flex-col gap-4">
           <PresenceList participants={participants} session={session} />
           {isFacilitator ? (
-            <button
-              onClick={handleStartWriting}
-              disabled={busy}
-              className="rounded-lg bg-ember px-4 py-2 font-semibold text-white transition disabled:opacity-50"
-            >
-              Start writing (3:00)
-            </button>
+            <>
+              <p className="text-sm text-grafite dark:text-marmol/80">
+                You&apos;re the facilitator: you start the timer and can reveal
+                everyone&apos;s updates early.
+              </p>
+              <button
+                type="button"
+                onClick={handleStartWriting}
+                disabled={busy}
+                className={primaryButton}
+              >
+                Start writing (3:00)
+              </button>
+            </>
           ) : (
             <p className="text-sm text-grafite dark:text-marmol/80">
-              You&apos;re in. Waiting for the facilitator to start writing.
+              You&apos;re in. Waiting for {facilitatorName} to start writing.
             </p>
           )}
         </div>
@@ -646,23 +775,41 @@ export default function Home() {
 
       {session && me && session.phase === "writing" && (
         <div className="flex flex-col gap-5">
-          <div className="flex items-center justify-between">
-            <p className="font-heading text-4xl font-bold tabular-nums text-ember">
-              {secondsLeft !== null ? formatClock(secondsLeft) : "3:00"}
-            </p>
-            <p className="text-sm text-grafite dark:text-marmol/80">
-              {submittedCount}/{participants.length} submitted
+          <div>
+            <div className="flex items-end justify-between">
+              <p
+                aria-hidden="true"
+                className={`font-heading text-4xl font-bold tabular-nums ${
+                  timerUrgent ? "timer-urgent text-ember-ink" : "text-ember"
+                }`}
+              >
+                {secondsLeft !== null ? formatClock(secondsLeft) : "3:00"}
+              </p>
+              <p className="text-sm text-grafite dark:text-marmol/80">
+                {submittedCount}/{participants.length} submitted
+              </p>
+            </div>
+            <div className="mt-2 h-1 overflow-hidden rounded-full bg-marmol dark:bg-white/15">
+              <div
+                className="h-full origin-left rounded-full bg-ember-fill transition-transform duration-300 ease-linear"
+                style={{ transform: `scaleX(${timerRatio})` }}
+              />
+            </div>
+            <p className="sr-only" role="status" aria-live="polite">
+              {timerAnnouncement}
             </p>
           </div>
 
           {isFacilitator && (
-            <button
-              onClick={handleRevealNow}
+            <ConfirmButton
+              label="Reveal now"
+              prompt={`${participants.length - submittedCount} of ${participants.length} haven't submitted yet. Reveal everyone's updates now?`}
+              confirmLabel="Yes, reveal"
+              needsConfirm={submittedCount < participants.length}
+              onConfirm={handleRevealNow}
               disabled={busy}
-              className="self-start rounded-lg border border-ember px-3 py-1.5 text-sm font-semibold text-ember transition disabled:opacity-50"
-            >
-              Reveal now
-            </button>
+              className="min-h-9 self-start rounded-lg border border-ember-ink px-3 text-sm font-semibold text-ember-ink transition disabled:opacity-50"
+            />
           )}
 
           {myUpdate && !myUpdate.submitted_at && (
@@ -680,8 +827,9 @@ export default function Home() {
                 Submitted. Waiting for the reveal…
               </p>
               <button
+                type="button"
                 onClick={handleUnsubmit}
-                className="self-start text-sm font-semibold text-ember"
+                className="min-h-9 self-start rounded-lg border border-grafite/30 px-3 text-sm font-semibold text-ardesia transition dark:border-white/25 dark:text-marmol"
               >
                 Edit my answers
               </button>
@@ -690,42 +838,78 @@ export default function Home() {
         </div>
       )}
 
-      {session && me && (session.phase === "reveal" || session.phase === "closed") && (
-        <div className="flex flex-col gap-4">
-          <p className="font-heading text-2xl font-bold text-ardesia dark:text-marmol">
-            {session.phase === "closed" ? "📁 Session closed" : "🎉 This week's updates"}
-          </p>
-          {session.phase === "closed" && (
-            <p className="text-sm text-grafite dark:text-marmol/80">
-              This session has ended. Here&apos;s what was shared, read-only.
+      {showingResults && session && me && (
+        <div className="flex flex-col gap-8">
+          <header
+            className={session.phase === "reveal" ? "arrive" : undefined}
+          >
+            <h2 className="font-heading text-3xl font-bold text-ardesia dark:text-marmol">
+              {session.phase === "closed" ? "Session closed" : "Everyone’s in"}
+            </h2>
+            <p className="mt-1 text-sm text-grafite dark:text-marmol/80">
+              {session.phase === "closed"
+                ? "This session has ended. Here's what was shared, read-only."
+                : `${submittedCount} ${submittedCount === 1 ? "update" : "updates"} in${
+                    flaggedTopicCount > 0
+                      ? ` · ${flaggedTopicCount} ${
+                          flaggedTopicCount === 1 ? "topic" : "topics"
+                        } flagged for discussion`
+                      : ""
+                  }`}
             </p>
-          )}
+            {isViewer && (
+              <p className="mt-1 text-sm text-grafite dark:text-marmol/80">
+                You&apos;re viewing this week&apos;s updates read-only. Only people who
+                joined before the reveal can flag topics.
+              </p>
+            )}
+          </header>
+
           <AgendaPanel
             participants={participants}
             updates={allUpdates}
             reactions={reactions}
+            canMarkDiscussed={isFacilitator && session.phase === "reveal"}
+            onToggleDiscussed={handleToggleDiscussed}
+            animate={session.phase === "reveal"}
           />
-          <RevealGrid
-            participants={participants}
-            updates={allUpdates}
-            reactions={reactions}
-            myParticipantId={me.id}
-            onToggleFlag={handleToggleFlag}
-            readOnly={session.phase === "closed"}
-          />
-          {session.phase === "reveal" && isFacilitator && (
-            <button
-              onClick={handleCloseSession}
-              disabled={busy}
-              className="self-start rounded-lg bg-ardesia px-4 py-2 font-semibold text-white transition disabled:opacity-50 dark:bg-marmol dark:text-ardesia"
+
+          <section aria-labelledby="updates-heading" className="flex flex-col gap-4">
+            <h2
+              id="updates-heading"
+              className="font-heading text-2xl font-bold text-ardesia dark:text-marmol"
             >
-              Close session
-            </button>
+              Everyone&apos;s updates
+            </h2>
+            <RevealGrid
+              participants={participants}
+              updates={allUpdates}
+              reactions={reactions}
+              myParticipantId={me.id}
+              onToggleFlag={handleToggleFlag}
+              readOnly={session.phase === "closed" || isViewer}
+              animate={session.phase === "reveal"}
+            />
+          </section>
+
+          {session.phase === "reveal" && isFacilitator && (
+            <ConfirmButton
+              label="Close session"
+              prompt="Close this session for everyone? Updates become read-only."
+              confirmLabel="Yes, close it"
+              onConfirm={handleCloseSession}
+              disabled={busy}
+              className="min-h-11 self-start rounded-lg bg-ardesia px-4 py-2 font-semibold text-white transition disabled:opacity-50 dark:bg-marmol dark:text-ardesia"
+            />
           )}
         </div>
       )}
 
-      {error && <p className="text-sm text-ember">{error}</p>}
+      {error && (
+        <p role="alert" className="text-sm font-semibold text-ember-ink">
+          {error}
+        </p>
+      )}
     </main>
   );
 }
@@ -739,20 +923,22 @@ function PresenceList({
 }) {
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-grafite dark:text-marmol/70">
+      <h2 className="text-sm font-semibold text-ardesia dark:text-marmol">
         Who&apos;s here ({participants.length})
-      </p>
-      <div className="mt-2 flex flex-wrap gap-2">
+      </h2>
+      <ul className="mt-2 flex flex-wrap gap-2">
         {participants.map((p) => (
-          <span
+          <li
             key={p.id}
             className="rounded-full bg-marmol px-3 py-1 text-sm text-ardesia"
           >
             {p.display_name}
-            {p.id === session.facilitator_participant_id && " 🎙️"}
-          </span>
+            {p.id === session.facilitator_participant_id && (
+              <span className="ml-1.5 text-xs text-grafite">facilitator</span>
+            )}
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   );
 }
@@ -772,8 +958,10 @@ function NameInput({
       value={name}
       onChange={(e) => setName(e.target.value)}
       placeholder="Your name"
+      aria-label="Your name"
+      autoComplete="name"
       disabled={disabled}
-      className="rounded-lg border border-marmol bg-white px-3 py-2 text-ardesia outline-none focus:border-ember"
+      className={inputClass}
     />
   );
 }

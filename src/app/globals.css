@@ -3,6 +3,9 @@
 :root {
   --background: #ffffff;
   --foreground: #2e2b2b;
+  /* Ember as readable ink: >=4.5:1 on white and on the light ember tint. */
+  --ember-ink: #b53a0f;
+  color-scheme: light;
 }
 
 @theme inline {
@@ -10,7 +13,9 @@
   --color-foreground: var(--foreground);
 
   --color-ardesia: #2e2b2b;
-  --color-ember: #eb4c18;
+  --color-ember: #eb4c18; /* brand accent: large type, decorative use */
+  --color-ember-fill: #c93d0e; /* fills carrying white text (5:1) */
+  --color-ember-ink: var(--ember-ink); /* small text and icons; flips in dark mode */
   --color-ember-light: #fdded4;
   --color-grafite: #595959;
   --color-nuvola: #9a938e;
@@ -24,6 +29,8 @@
   :root {
     --background: #2e2b2b;
     --foreground: #eeeeee;
+    --ember-ink: #ff7a4d; /* 5.4:1 on the charcoal background */
+    color-scheme: dark;
   }
 }
 
@@ -33,6 +40,89 @@ body {
   font-family: var(--font-body);
 }
 
-.font-heading {
-  font-variant-numeric: tabular-nums;
+/* Browser surfaces, themed from the palette. */
+html {
+  scrollbar-color: color-mix(in srgb, var(--foreground) 35%, transparent) transparent;
+}
+
+::selection {
+  background: #fdded4;
+  color: #2e2b2b;
+}
+
+@media (prefers-color-scheme: dark) {
+  ::selection {
+    background: #6b3a2a;
+    color: #eeeeee;
+  }
+}
+
+input,
+textarea {
+  caret-color: var(--ember-ink);
+}
+
+::placeholder {
+  color: color-mix(in srgb, var(--foreground) 70%, transparent);
+  opacity: 1;
+}
+
+/* One visible, on-palette focus ring for everything keyboard-reachable. */
+:where(a, button, input, textarea, summary):focus-visible {
+  outline: 2px solid var(--ember-ink);
+  outline-offset: 2px;
+}
+
+/* The reveal is the one authored moment: content arrives, sharpening as it lands. */
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+
+@keyframes arrive-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.arrive {
+  animation: arrive 560ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--arrive-delay, 0ms);
+}
+
+/* Final seconds of the writing timer: a slow breathing pulse. */
+@keyframes urgent {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.timer-urgent {
+  animation: urgent 1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arrive {
+    animation: arrive-fade 200ms ease-out both;
+    animation-delay: 0ms;
+  }
+
+  .timer-urgent {
+    animation: none;
+  }
 }
