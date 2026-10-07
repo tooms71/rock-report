@@ -14,7 +14,7 @@ import {
 } from "@/components/RevealGrid";
 import { AgendaPanel } from "@/components/AgendaPanel";
 import { ConfirmButton } from "@/components/ConfirmButton";
-import { CopyNotesButton } from "@/components/CopyNotesButton";
+import { CopyButton } from "@/components/CopyButton";
 import { SubmittedSummary } from "@/components/SubmittedSummary";
 import { buildMeetingNotes } from "@/lib/summary";
 import { inputClass } from "@/lib/ui";
@@ -391,6 +391,11 @@ export default function Home() {
       attemptReveal(session.id);
     }
   }, [session?.phase, session?.id, allUpdates, participants.length]);
+
+  // Arrive at the top of the reveal, not wherever the writing form was scrolled to.
+  useEffect(() => {
+    if (session?.phase === "reveal") window.scrollTo({ top: 0 });
+  }, [session?.phase]);
 
   async function handleCreateSession() {
     const trimmed = name.trim();
@@ -812,7 +817,7 @@ export default function Home() {
               setChosenMe(null);
               setOptedOut(true);
             }}
-            className="font-semibold text-ember-ink underline underline-offset-2"
+            className="inline-flex min-h-8 items-center font-semibold text-ember-ink underline underline-offset-2"
           >
             Not you?
           </button>
@@ -889,14 +894,14 @@ export default function Home() {
                     setName(nameSuggestion.display_name);
                     void handleJoin({ name: nameSuggestion.display_name });
                   }}
-                  className="min-h-9 rounded-lg bg-ember-fill px-3 text-sm font-semibold text-white"
+                  className="min-h-11 rounded-lg bg-ember-fill px-3 text-sm font-semibold text-white"
                 >
                   Yes, I&apos;m {nameSuggestion.display_name}
                 </button>
                 <button
                   type="button"
                   onClick={() => void handleJoin({ name: name.trim(), forceNew: true })}
-                  className="min-h-9 rounded-lg border border-grafite/50 px-3 text-sm font-semibold text-ardesia dark:border-white/40 dark:text-marmol"
+                  className="min-h-11 rounded-lg border border-grafite/50 px-3 text-sm font-semibold text-ardesia dark:border-white/40 dark:text-marmol"
                 >
                   No, I&apos;m {name.trim()}
                 </button>
@@ -922,6 +927,11 @@ export default function Home() {
                 You&apos;re the facilitator: you start the timer and can reveal
                 everyone&apos;s updates early.
               </p>
+              <CopyButton
+                label="Copy invite link"
+                copiedText="Copied. Teammates open it to join."
+                getText={() => window.location.origin}
+              />
               <button
                 type="button"
                 onClick={handleStartWriting}
@@ -961,7 +971,7 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={handleAddMinute}
-                    className="min-h-9 rounded-lg border border-grafite/50 px-3 text-sm font-semibold text-ardesia transition hover:border-ember-ink hover:text-ember-ink dark:border-white/40 dark:text-marmol"
+                    className="min-h-11 rounded-lg border border-grafite/50 px-3 text-sm font-semibold text-ardesia transition hover:border-ember-ink hover:text-ember-ink dark:border-white/40 dark:text-marmol"
                   >
                     +1 min
                   </button>
@@ -1032,7 +1042,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={handleUnsubmit}
-                className="min-h-9 self-start rounded-lg border border-grafite/50 px-3 text-sm font-semibold text-ardesia transition dark:border-white/40 dark:text-marmol"
+                className="min-h-11 self-start rounded-lg border border-grafite/50 px-3 text-sm font-semibold text-ardesia transition dark:border-white/40 dark:text-marmol"
               >
                 Edit my answers
               </button>
@@ -1050,7 +1060,7 @@ export default function Home() {
                 needsConfirm={submittedCount < participants.length}
                 onConfirm={handleRevealNow}
                 disabled={busy}
-                className="min-h-9 self-start rounded-lg border border-ember-ink px-3 text-sm font-semibold text-ember-ink transition disabled:opacity-50"
+                className="min-h-11 self-start rounded-lg border border-ember-ink px-3 text-sm font-semibold text-ember-ink transition disabled:opacity-50"
               />
             </div>
           )}
@@ -1104,7 +1114,10 @@ export default function Home() {
             </p>
             {session.phase === "closed" && (
               <div className="mt-4">
-                <CopyNotesButton
+                <CopyButton
+                  primary
+                  label="Copy meeting notes"
+                  copiedText="Copied. Paste it into Slack or Notion."
                   getText={() =>
                     buildMeetingNotes({
                       weekLabel: formatWeekOf(session.week_of),
@@ -1142,6 +1155,11 @@ export default function Home() {
             >
               Everyone&apos;s updates
             </h2>
+            {session.phase === "reveal" && !isViewer && (
+              <p className="-mt-2 text-base text-grafite dark:text-marmol/80">
+                Tap Flag on anything the team should discuss.
+              </p>
+            )}
             <RevealGrid
               participants={participants}
               updates={allUpdates}
@@ -1153,7 +1171,7 @@ export default function Home() {
             />
           </section>
 
-          <RockCard compact />
+          {session.phase === "closed" ? <RockCard /> : <RockCard compact />}
 
         </div>
       )}

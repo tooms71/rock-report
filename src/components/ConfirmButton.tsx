@@ -51,14 +51,14 @@ export function ConfirmButton({
             setAsking(false);
             onConfirm();
           }}
-          className="min-h-9 rounded-lg bg-ember-fill px-3 text-sm font-semibold text-white transition disabled:opacity-50"
+          className="min-h-11 rounded-lg bg-ember-fill px-3 text-sm font-semibold text-white transition disabled:opacity-50"
         >
           {confirmLabel}
         </button>
         <button
           type="button"
           onClick={() => setAsking(false)}
-          className="min-h-9 rounded-lg border border-grafite/30 px-3 text-sm font-semibold text-ardesia transition dark:border-white/25 dark:text-marmol"
+          className="min-h-11 rounded-lg border border-grafite/30 px-3 text-sm font-semibold text-ardesia transition dark:border-white/25 dark:text-marmol"
         >
           Cancel
         </button>

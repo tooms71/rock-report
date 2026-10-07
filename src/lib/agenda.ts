@@ -41,7 +41,16 @@ export function buildAgenda(
   updates: AgendaUpdate[],
   reactions: ReactionRow[]
 ) {
-  const shown = updates.filter((u) => isShown(u));
+  // Follow the order people joined, not the order rows came back from the database,
+  // so item numbers match in the live view, the archive and the copied notes.
+  const joinOrder = new Map(participants.map((p, index) => [p.id, index]));
+  const shown = updates
+    .filter((u) => isShown(u))
+    .sort(
+      (a, b) =>
+        (joinOrder.get(a.participant_id) ?? Infinity) -
+        (joinOrder.get(b.participant_id) ?? Infinity)
+    );
   const nameFor = (participantId: string) =>
     participants.find((p) => p.id === participantId)?.display_name ?? "Someone";
 

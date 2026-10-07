@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import type { UpdateFields } from "@/components/WritingForm";
 import { FlagIcon } from "@/components/Icons";
+import { ClampedText } from "@/components/ClampedText";
 import { isShown } from "@/lib/updates";
 
 type ParticipantRow = {
@@ -182,6 +183,12 @@ function UpdateCard({
         </div>
       )}
 
+      {!hasOffers && !FLAGGABLE_FIELDS.some(({ key }) => update[key]) && (
+        <p className="mt-2 text-base text-grafite dark:text-marmol/80">
+          Nothing else to discuss this week.
+        </p>
+      )}
+
       <div className="mt-4 flex flex-col gap-4">
         {FLAGGABLE_FIELDS.map(({ key, label }) => (
           <Field
@@ -237,7 +244,7 @@ function FlagButton({
       className={`inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-sm font-semibold transition max-sm:min-h-11 ${
         flaggedByMe
           ? "border-ember-fill bg-ember-fill text-white"
-          : "border-transparent text-grafite hover:border-ember-ink hover:text-ember-ink dark:text-marmol/80"
+          : "border-grafite/50 text-ardesia hover:border-ember-ink hover:text-ember-ink dark:border-white/40 dark:text-marmol"
       }`}
     >
       <FlagIcon filled={flaggedByMe} className="size-3.5" />
@@ -267,21 +274,11 @@ function Stat({
 }) {
   return (
     <div>
-      <p className="text-sm font-semibold text-grafite dark:text-marmol/80">
-        {label}
-      </p>
-      {value === null ? (
-        <p className="text-grafite dark:text-marmol/60" aria-label={`${label}: none entered`}>
-          —
+      <div className="flex min-h-8 items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-grafite dark:text-marmol/80">
+          {label}
         </p>
-      ) : (
-        <p className="text-lg tabular-nums [overflow-wrap:anywhere] text-ardesia dark:text-marmol">
-          {value}
-          {note && <span className="text-grafite dark:text-marmol/80"> · {note}</span>}
-        </p>
-      )}
-      {flag && value !== null && (
-        <div className="mt-1.5">
+        {flag && value !== null && (
           <FlagButton
             label={label}
             subject={subject ?? ""}
@@ -290,7 +287,17 @@ function Stat({
             readOnly={flag.readOnly}
             onToggle={flag.onToggle}
           />
-        </div>
+        )}
+      </div>
+      {value === null ? (
+        <p className="text-grafite dark:text-marmol/60" aria-label={`${label}: none entered`}>
+          —
+        </p>
+      ) : (
+        <p className="text-lg tabular-nums [overflow-wrap:anywhere] text-ardesia dark:text-marmol">
+          {value}
+          {note && <span> · {note}</span>}
+        </p>
       )}
     </div>
   );
@@ -330,7 +337,12 @@ function Field({
           onToggle={onToggleFlag}
         />
       </div>
-      <p className="whitespace-pre-line text-lg [overflow-wrap:anywhere] text-ardesia dark:text-marmol">{value}</p>
+      <ClampedText
+        lines={3}
+        className="whitespace-pre-line text-lg [overflow-wrap:anywhere] text-ardesia dark:text-marmol"
+      >
+        {value}
+      </ClampedText>
     </div>
   );
 }

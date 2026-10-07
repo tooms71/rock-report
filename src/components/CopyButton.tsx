@@ -23,7 +23,17 @@ function copyViaSelection(text: string): boolean {
   }
 }
 
-export function CopyNotesButton({ getText }: { getText: () => string }) {
+export function CopyButton({
+  getText,
+  label,
+  copiedText,
+  primary = false,
+}: {
+  getText: () => string;
+  label: string;
+  copiedText: string;
+  primary?: boolean;
+}) {
   const [state, setState] = useState<CopyState>("idle");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -51,9 +61,13 @@ export function CopyNotesButton({ getText }: { getText: () => string }) {
       <button
         type="button"
         onClick={copy}
-        className="min-h-11 rounded-lg border border-grafite/50 px-4 text-sm font-semibold text-ardesia transition hover:border-ember-ink hover:text-ember-ink dark:border-white/40 dark:text-marmol"
+        className={`min-h-11 rounded-lg px-4 text-sm font-semibold transition ${
+          primary
+            ? "bg-ember-fill text-white"
+            : "border border-grafite/50 text-ardesia hover:border-ember-ink hover:text-ember-ink dark:border-white/40 dark:text-marmol"
+        }`}
       >
-        Copy meeting notes
+        {label}
       </button>
       <span
         role="status"
@@ -64,7 +78,7 @@ export function CopyNotesButton({ getText }: { getText: () => string }) {
             : "text-grafite dark:text-marmol/80"
         }`}
       >
-        {state === "copied" && "Copied. Paste it into Slack or Notion."}
+        {state === "copied" && copiedText}
         {state === "error" && "Couldn’t copy from this browser. Try again."}
       </span>
     </div>

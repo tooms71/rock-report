@@ -8,7 +8,7 @@ import { RockCard } from "@/components/RockCard";
 import { AgendaPanel } from "@/components/AgendaPanel";
 import { RevealGrid, type ReactionRow } from "@/components/RevealGrid";
 import { formatWeekOf, parseWeekOf } from "@/lib/date";
-import { CopyNotesButton } from "@/components/CopyNotesButton";
+import { CopyButton } from "@/components/CopyButton";
 import { buildMeetingNotes } from "@/lib/summary";
 import type { UpdateFields } from "@/components/WritingForm";
 
@@ -117,7 +117,10 @@ export default function SessionDetailPage() {
         <RockCard compact date={parseWeekOf(session.week_of)} />
       </div>
 
-      <CopyNotesButton
+      <CopyButton
+        primary
+        label="Copy meeting notes"
+        copiedText="Copied. Paste it into Slack or Notion."
         getText={() =>
           buildMeetingNotes({
             weekLabel: formatWeekOf(session.week_of),

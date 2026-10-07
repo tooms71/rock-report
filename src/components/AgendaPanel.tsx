@@ -145,6 +145,7 @@ export function AgendaPanel({
                             type="button"
                             onClick={() => onToggleDiscussed(item.updateId, item.fieldKey)}
                             aria-pressed={item.discussed}
+                            aria-label={`${item.discussed ? "Undo discussed:" : "Mark discussed:"} ${item.name}’s “${item.label}”`}
                             className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-grafite/50 px-3 text-sm font-semibold text-grafite transition hover:border-ember-ink hover:text-ember-ink max-sm:min-h-11 dark:border-white/40 dark:text-marmol/80"
                           >
                             <CheckIcon className="size-4" />
