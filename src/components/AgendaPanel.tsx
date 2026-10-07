@@ -32,14 +32,24 @@ export function AgendaPanel({
   onToggleDiscussed?: (updateId: string, fieldKey: string) => void;
   animate?: boolean;
 }) {
-  const { offersClosed, rolesOpened, flagged } = buildAgenda(participants, updates, reactions);
+  const { offersClosed, offersClosedTotal, rolesOpened, flagged } = buildAgenda(
+    participants,
+    updates,
+    reactions
+  );
 
   const remaining = flagged.filter((f) => !f.discussed).length;
   const hasInfo = offersClosed.length > 0 || rolesOpened.length > 0;
 
   const infoGroups = (
     <>
-      <AgendaGroup title="Offers closed" icon={<OffersIcon className="size-5" />} items={offersClosed} />
+      <AgendaGroup
+        title="Offers closed"
+        icon={<OffersIcon className="size-5" />}
+        items={offersClosed}
+        // With one person the total just repeats their number.
+        total={offersClosed.length >= 2 ? offersClosedTotal : undefined}
+      />
       <AgendaGroup title="New roles opened" icon={<RolesIcon className="size-5" />} items={rolesOpened} />
     </>
   );
@@ -182,10 +192,12 @@ function AgendaGroup({
   title,
   icon,
   items,
+  total,
 }: {
   title: string;
   icon: ReactNode;
   items: AgendaInfoItem[];
+  total?: number;
 }) {
   if (items.length === 0) return null;
   return (
@@ -193,6 +205,11 @@ function AgendaGroup({
       <h3 className="flex items-center gap-2 font-heading text-xl font-bold text-ardesia dark:text-marmol">
         <span className="text-ember-ink">{icon}</span>
         {title}
+        {total !== undefined && (
+          <span className="font-sans text-base font-semibold tabular-nums text-ember-ink">
+            · {total} this week
+          </span>
+        )}
       </h3>
       <ul className="mt-2 flex flex-col gap-2">
         {items.map((item) => (

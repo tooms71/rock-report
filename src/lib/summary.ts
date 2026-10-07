@@ -21,7 +21,7 @@ export function buildMeetingNotes({
   updates: AgendaUpdate[];
   reactions: ReactionRow[];
 }): string {
-  const { shown, nameFor, offersClosed, rolesOpened, flagged } = buildAgenda(
+  const { shown, nameFor, offersClosed, offersClosedTotal, rolesOpened, flagged } = buildAgenda(
     participants,
     updates,
     reactions
@@ -31,7 +31,9 @@ export function buildMeetingNotes({
 
   if (offersClosed.length > 0) {
     sections.push(
-      ["Offers closed", ...offersClosed.map((i) => `- ${i.name}: ${oneLine(i.text)}`)].join("\n")
+      [
+        offersClosed.length >= 2 ? `Offers closed (${offersClosedTotal} this week)` : "Offers closed",
+        ...offersClosed.map((i) => `- ${i.name}: ${oneLine(i.text)}`)].join("\n")
     );
   }
   if (rolesOpened.length > 0) {

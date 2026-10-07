@@ -67,6 +67,8 @@ export function buildAgenda(
       : []
   );
 
+  const offersClosedTotal = shown.reduce((sum, u) => sum + (u.offers_closed ?? 0), 0);
+
   const rolesOpened: AgendaInfoItem[] = shown.flatMap((u) =>
     u.roles_opened
       ? [{ id: u.id, name: nameFor(u.participant_id), text: u.roles_opened }]
@@ -100,7 +102,7 @@ export function buildAgenda(
     }))
   );
 
-  return { shown, nameFor, offersClosed, rolesOpened, flagged };
+  return { shown, nameFor, offersClosed, offersClosedTotal, rolesOpened, flagged };
 }
 
 // One-line counts for a session, used on the archive list and detail pages.
