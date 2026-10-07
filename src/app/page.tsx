@@ -15,6 +15,9 @@ import {
 import { AgendaPanel } from "@/components/AgendaPanel";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { inputClass } from "@/lib/ui";
+import { isShown } from "@/lib/updates";
+import { isSimilarName } from "@/lib/names";
+import { CheckIcon } from "@/components/Icons";
 
 const WRITING_DURATION_MS = 3 * 60 * 1000;
 
@@ -55,6 +58,13 @@ export default function Home() {
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
   const [me, setMe] = useState<ParticipantRow | null>(null);
   const [name, setName] = useState("");
+  // Set when the typed name is one typo away from someone already in the session.
+  const [nameSuggestion, setNameSuggestion] = useState<ParticipantRow | null>(null);
+
+  function updateName(value: string) {
+    setName(value);
+    setNameSuggestion(null);
+  }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -405,17 +415,28 @@ export default function Home() {
     }
   }
 
-  async function handleJoin() {
+  async function handleJoin(override?: { name: string; forceNew?: boolean }) {
     if (!session) return;
-    const trimmed = name.trim();
+    const trimmed = (override?.name ?? name).trim();
     if (!trimmed) return;
 
     setBusy(true);
     setError(null);
+    setNameSuggestion(null);
     try {
       const existing = participants.find(
         (p) => p.display_name.trim().toLowerCase() === trimmed.toLowerCase()
       );
+
+      // "Shanon" vs "Shannon": ask before creating a second person who would never
+      // submit and would block the everyone-has-submitted reveal.
+      if (!existing && !override?.forceNew) {
+        const similar = participants.find((p) => isSimilarName(p.display_name, trimmed));
+        if (similar) {
+          setNameSuggestion(similar);
+          return;
+        }
+      }
 
       let participant = existing ?? null;
       if (!participant && (session.phase === "reveal" || session.phase === "closed")) {
@@ -470,7 +491,12 @@ export default function Home() {
     setBusy(true);
     setError(null);
     try {
-      await attemptReveal(session.id);
+      const { error: revealError } = await supabase
+        .from("sessions")
+        .update({ phase: "reveal" })
+        .eq("id", session.id)
+        .eq("phase", "writing");
+      if (revealError) setError(CONNECTION_ERROR);
     } finally {
       setBusy(false);
     }
@@ -554,12 +580,16 @@ export default function Home() {
 
     if (existing.length > 0) {
       const ids = existing.map((r) => r.id);
-      await supabase.from("reactions").delete().in("id", ids);
+      const { error: undoError } = await supabase.from("reactions").delete().in("id", ids);
+      if (undoError) {
+        setError(CONNECTION_ERROR);
+        return;
+      }
       setReactions((prev) => prev.filter((r) => !ids.includes(r.id)));
       return;
     }
 
-    const { data } = await supabase
+    const { data, error: markError } = await supabase
       .from("reactions")
       .insert({
         session_id: session.id,
@@ -571,6 +601,10 @@ export default function Home() {
       })
       .select()
       .single();
+    if (markError) {
+      setError(CONNECTION_ERROR);
+      return;
+    }
     if (data) setReactions((prev) => [...prev, data]);
   }
 
@@ -587,12 +621,19 @@ export default function Home() {
     );
 
     if (existing) {
-      await supabase.from("reactions").delete().eq("id", existing.id);
+      const { error: unflagError } = await supabase
+        .from("reactions")
+        .delete()
+        .eq("id", existing.id);
+      if (unflagError) {
+        setError(CONNECTION_ERROR);
+        return;
+      }
       setReactions((prev) => prev.filter((r) => r.id !== existing.id));
       return;
     }
 
-    const { data } = await supabase
+    const { data, error: flagError } = await supabase
       .from("reactions")
       .insert({
         session_id: session.id,
@@ -604,6 +645,10 @@ export default function Home() {
       })
       .select()
       .single();
+    if (flagError) {
+      setError(CONNECTION_ERROR);
+      return;
+    }
     if (data) setReactions((prev) => [...prev, data]);
   }
 
@@ -617,7 +662,13 @@ export default function Home() {
 
   const isFacilitator = !!me && me.id === session?.facilitator_participant_id;
   const isViewer = me?.id === VIEWER_ID;
+  // Strictly submitted people (for the live "who's done" display during writing)...
   const submittedCount = allUpdates.filter((u) => u.submitted_at).length;
+  const stillWriting = participants.length - submittedCount;
+  const iHaveSubmitted = !!myUpdate?.submitted_at;
+  const lastToSubmit = participants.length > 1 && !iHaveSubmitted && stillWriting === 1;
+  // ...versus everyone with something to show once the reveal happens (drafts count).
+  const updatesInCount = allUpdates.filter(isShown).length;
   const facilitatorName =
     participants.find((p) => p.id === session?.facilitator_participant_id)?.display_name ??
     "the facilitator";
@@ -633,6 +684,10 @@ export default function Home() {
   const timerRatio =
     secondsLeft === null ? 1 : Math.min(1, Math.max(0, secondsLeft / secondsTotal));
   const timerUrgent = secondsLeft !== null && secondsLeft <= 30;
+  const countdownBeat =
+    secondsLeft !== null && secondsLeft > 0 && secondsLeft <= 3
+      ? Math.ceil(secondsLeft)
+      : null;
   const timerAnnouncement =
     secondsLeft === null
       ? ""
@@ -682,13 +737,22 @@ export default function Home() {
           <h1 className="font-heading text-3xl font-bold text-ardesia dark:text-marmol">
             Rock Report
           </h1>
-          <Link href="/archive" className="text-sm font-semibold text-ember-ink">
+          <Link
+            href="/archive"
+            className="inline-flex min-h-11 items-center text-sm font-semibold text-ember-ink"
+          >
             Past sessions →
           </Link>
         </div>
 
-        <RockCard compact={showingResults} />
+        {!showingResults && <RockCard />}
       </div>
+
+      {error && (
+        <p role="alert" className="text-sm font-semibold text-ember-ink">
+          {error}
+        </p>
+      )}
 
       {!session && (
         <form
@@ -702,7 +766,7 @@ export default function Home() {
             No session yet this week. Starting one makes you the facilitator: you
             start the timer and control the reveal.
           </p>
-          <NameInput name={name} setName={setName} disabled={busy} />
+          <NameInput name={name} setName={updateName} disabled={busy} />
           <button
             type="submit"
             disabled={busy || !name.trim()}
@@ -728,15 +792,46 @@ export default function Home() {
                 <button
                   type="button"
                   key={p.id}
-                  onClick={() => setName(p.display_name)}
-                  className="min-h-9 rounded-full bg-marmol px-3 py-1 text-sm text-ardesia hover:bg-marmol/70"
+                  onClick={() => updateName(p.display_name)}
+                  className="min-h-9 rounded-full border border-grafite/40 bg-white px-3 py-1 text-sm text-ardesia transition hover:bg-stone dark:border-white/30 dark:bg-white/10 dark:text-marmol dark:hover:bg-white/15"
                 >
                   {p.display_name}
                 </button>
               ))}
             </div>
           )}
-          <NameInput name={name} setName={setName} disabled={busy} />
+          <NameInput name={name} setName={updateName} disabled={busy} />
+          {nameSuggestion && (
+            <div
+              role="group"
+              aria-label="Did you mean someone already here?"
+              className="flex flex-col gap-2 rounded-lg border border-grafite/70 p-3 dark:border-white/40"
+            >
+              <p className="text-sm text-ardesia dark:text-marmol">
+                Did you mean <strong>{nameSuggestion.display_name}</strong>? That name
+                is already in this session.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setName(nameSuggestion.display_name);
+                    void handleJoin({ name: nameSuggestion.display_name });
+                  }}
+                  className="min-h-9 rounded-lg bg-ember-fill px-3 text-sm font-semibold text-white"
+                >
+                  Yes, I&apos;m {nameSuggestion.display_name}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleJoin({ name: name.trim(), forceNew: true })}
+                  className="min-h-9 rounded-lg border border-grafite/50 px-3 text-sm font-semibold text-ardesia dark:border-white/40 dark:text-marmol"
+                >
+                  No, I&apos;m {name.trim()}
+                </button>
+              </div>
+            </div>
+          )}
           <button
             type="submit"
             disabled={busy || !name.trim()}
@@ -775,21 +870,23 @@ export default function Home() {
 
       {session && me && session.phase === "writing" && (
         <div className="flex flex-col gap-5">
-          <div>
-            <div className="flex items-end justify-between">
+          {/* The room, at a glance: the clock and who has finished. Stays in view. */}
+          <div className="sticky top-0 z-10 -mx-6 border-b border-grafite/20 bg-background px-6 pb-3 pt-3 dark:border-white/15">
+            <div className="flex items-end justify-between gap-4">
               <p
-                aria-hidden="true"
-                className={`font-heading text-4xl font-bold tabular-nums ${
+                role="timer"
+                aria-label="Time left"
+                className={`font-heading text-5xl font-bold tabular-nums ${
                   timerUrgent ? "timer-urgent text-ember-ink" : "text-ember"
                 }`}
               >
                 {secondsLeft !== null ? formatClock(secondsLeft) : "3:00"}
               </p>
-              <p className="text-sm text-grafite dark:text-marmol/80">
-                {submittedCount}/{participants.length} submitted
+              <p className="pb-1 text-sm text-grafite dark:text-marmol/80">
+                {submittedCount} of {participants.length} submitted
               </p>
             </div>
-            <div className="mt-2 h-1 overflow-hidden rounded-full bg-marmol dark:bg-white/15">
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-grafite/15 dark:bg-white/15">
               <div
                 className="h-full origin-left rounded-full bg-ember-fill transition-transform duration-300 ease-linear"
                 style={{ transform: `scaleX(${timerRatio})` }}
@@ -798,19 +895,38 @@ export default function Home() {
             <p className="sr-only" role="status" aria-live="polite">
               {timerAnnouncement}
             </p>
+            <ul
+              aria-label="Who has submitted"
+              className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5"
+            >
+              {participants.map((p) => {
+                const done = allUpdates.some(
+                  (u) => u.participant_id === p.id && u.submitted_at
+                );
+                return (
+                  <li
+                    key={p.id}
+                    className={`inline-flex items-center gap-1.5 text-sm ${
+                      done
+                        ? "font-semibold text-ardesia dark:text-marmol"
+                        : "text-grafite dark:text-marmol/70"
+                    }`}
+                  >
+                    {done ? (
+                      <CheckIcon className="size-4 text-ember-ink" />
+                    ) : (
+                      <span
+                        aria-hidden="true"
+                        className="size-2 rounded-full bg-grafite/50 motion-safe:animate-pulse dark:bg-white/40"
+                      />
+                    )}
+                    {p.display_name}
+                    <span className="sr-only">{done ? " has submitted" : " is still writing"}</span>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
-
-          {isFacilitator && (
-            <ConfirmButton
-              label="Reveal now"
-              prompt={`${participants.length - submittedCount} of ${participants.length} haven't submitted yet. Reveal everyone's updates now?`}
-              confirmLabel="Yes, reveal"
-              needsConfirm={submittedCount < participants.length}
-              onConfirm={handleRevealNow}
-              disabled={busy}
-              className="min-h-9 self-start rounded-lg border border-ember-ink px-3 text-sm font-semibold text-ember-ink transition disabled:opacity-50"
-            />
-          )}
 
           {myUpdate && !myUpdate.submitted_at && (
             <WritingForm
@@ -818,23 +934,58 @@ export default function Home() {
               onAutosave={handleAutosave}
               onSubmit={handleSubmitUpdate}
               submitting={busy}
+              lastToSubmit={lastToSubmit}
             />
           )}
 
           {myUpdate && myUpdate.submitted_at && (
             <div className="flex flex-col gap-3">
               <p className="text-sm text-grafite dark:text-marmol/80">
-                Submitted. Waiting for the reveal…
+                Submitted.{" "}
+                {stillWriting > 0
+                  ? `Waiting for ${stillWriting} more…`
+                  : "Revealing now…"}
               </p>
               <button
                 type="button"
                 onClick={handleUnsubmit}
-                className="min-h-9 self-start rounded-lg border border-grafite/30 px-3 text-sm font-semibold text-ardesia transition dark:border-white/25 dark:text-marmol"
+                className="min-h-9 self-start rounded-lg border border-grafite/50 px-3 text-sm font-semibold text-ardesia transition dark:border-white/40 dark:text-marmol"
               >
                 Edit my answers
               </button>
             </div>
           )}
+
+          {isFacilitator && (
+            <div className="mt-4 flex flex-col gap-2 border-t border-grafite/20 pt-5 dark:border-white/15">
+              <p className="text-sm text-grafite dark:text-marmol/70">
+                Facilitator controls
+              </p>
+              <ConfirmButton
+                label="End writing and reveal"
+                prompt={`${stillWriting} of ${participants.length} haven't submitted yet. Reveal everyone's updates now?`}
+                confirmLabel="Yes, reveal"
+                needsConfirm={submittedCount < participants.length}
+                onConfirm={handleRevealNow}
+                disabled={busy}
+                className="min-h-9 self-start rounded-lg border border-ember-ink px-3 text-sm font-semibold text-ember-ink transition disabled:opacity-50"
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {countdownBeat !== null && session?.phase === "writing" && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed inset-0 z-20 grid place-items-center"
+        >
+          <span
+            key={countdownBeat}
+            className="count-beat font-heading text-8xl font-bold leading-none text-ember"
+          >
+            {countdownBeat}
+          </span>
         </div>
       )}
 
@@ -849,13 +1000,13 @@ export default function Home() {
             <p className="mt-1 text-sm text-grafite dark:text-marmol/80">
               {session.phase === "closed"
                 ? "This session has ended. Here's what was shared, read-only."
-                : `${submittedCount} ${submittedCount === 1 ? "update" : "updates"} in${
+                : `${updatesInCount} ${updatesInCount === 1 ? "update" : "updates"} in${
                     flaggedTopicCount > 0
                       ? ` · ${flaggedTopicCount} ${
                           flaggedTopicCount === 1 ? "topic" : "topics"
                         } flagged for discussion`
                       : ""
-                  }`}
+                  } · Facilitator: ${facilitatorName}`}
             </p>
             {isViewer && (
               <p className="mt-1 text-sm text-grafite dark:text-marmol/80">
@@ -892,6 +1043,8 @@ export default function Home() {
             />
           </section>
 
+          <RockCard compact />
+
           {session.phase === "reveal" && isFacilitator && (
             <ConfirmButton
               label="Close session"
@@ -903,12 +1056,6 @@ export default function Home() {
             />
           )}
         </div>
-      )}
-
-      {error && (
-        <p role="alert" className="text-sm font-semibold text-ember-ink">
-          {error}
-        </p>
       )}
     </main>
   );
@@ -930,11 +1077,13 @@ function PresenceList({
         {participants.map((p) => (
           <li
             key={p.id}
-            className="rounded-full bg-marmol px-3 py-1 text-sm text-ardesia"
+            className="rounded-full border border-grafite/20 px-3 py-1 text-sm text-ardesia dark:border-white/20 dark:text-marmol"
           >
             {p.display_name}
             {p.id === session.facilitator_participant_id && (
-              <span className="ml-1.5 text-xs text-grafite">facilitator</span>
+              <span className="ml-1.5 text-xs text-grafite dark:text-marmol/70">
+                facilitator
+              </span>
             )}
           </li>
         ))}

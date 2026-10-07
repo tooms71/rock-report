@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { inputClass } from "@/lib/ui";
+import { UPDATE_FIELD_KEYS } from "@/lib/updates";
 
 export type UpdateFields = {
   offers_made: number | null;
@@ -13,15 +14,7 @@ export type UpdateFields = {
   anything_else: string | null;
 };
 
-const FIELD_KEYS: (keyof UpdateFields)[] = [
-  "offers_made",
-  "offers_made_note",
-  "offers_closed",
-  "offers_closed_note",
-  "roles_opened",
-  "top_priorities",
-  "anything_else",
-];
+const FIELD_KEYS = UPDATE_FIELD_KEYS;
 
 // The row we get from the database carries extra columns (id, submitted_at...);
 // only ever send the user-editable fields back.
@@ -40,11 +33,13 @@ export function WritingForm({
   onAutosave,
   onSubmit,
   submitting,
+  lastToSubmit = false,
 }: {
   initialFields: UpdateFields;
   onAutosave: (fields: UpdateFields) => Promise<boolean>;
   onSubmit: (fields: UpdateFields) => void;
   submitting: boolean;
+  lastToSubmit?: boolean;
 }) {
   const [fields, setFields] = useState<UpdateFields>(() => pickFields(initialFields));
   const fieldsRef = useRef(fields);
@@ -110,7 +105,15 @@ export function WritingForm({
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div
+      className="flex flex-col gap-5"
+      onKeyDown={(e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+          e.preventDefault();
+          handleSubmit();
+        }
+      }}
+    >
       <div className="grid grid-cols-2 gap-3">
         <NumberField
           label="Offers closed"
@@ -152,6 +155,12 @@ export function WritingForm({
       />
 
       <div className="flex flex-col gap-2">
+        {lastToSubmit && (
+          <p className="text-sm font-semibold text-ember-ink">
+            You&apos;re the last one still writing. Submitting reveals everyone&apos;s
+            updates right away.
+          </p>
+        )}
         <button
           type="button"
           onClick={handleSubmit}
@@ -165,7 +174,7 @@ export function WritingForm({
           aria-live="polite"
           className={`text-xs ${
             saveState === "error"
-              ? "text-ember-ink"
+              ? "font-semibold text-ember-ink"
               : "text-grafite dark:text-marmol/70"
           }`}
         >
@@ -174,6 +183,10 @@ export function WritingForm({
           {saveState === "saved" && "Saved. You can keep editing until you submit."}
           {saveState === "error" &&
             "Couldn't save just now. Your text is still here, and we'll try again as you type."}
+        </p>
+        <p className="text-xs text-grafite dark:text-marmol/70">
+          Everyone sees this when time&apos;s up. Whatever is saved by then is shown,
+          even if you haven&apos;t pressed Submit. Tip: Cmd or Ctrl + Enter submits.
         </p>
       </div>
     </div>

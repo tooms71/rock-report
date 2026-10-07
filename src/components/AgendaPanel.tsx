@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import {
   DISCUSSED_EMOJI,
   FLAG_EMOJI,
@@ -6,7 +6,8 @@ import {
   formatOffers,
   type ReactionRow,
 } from "@/components/RevealGrid";
-import { CheckIcon, FlagIcon } from "@/components/Icons";
+import { CheckIcon, FlagIcon, OffersIcon, RolesIcon } from "@/components/Icons";
+import { isShown } from "@/lib/updates";
 import type { UpdateFields } from "@/components/WritingForm";
 
 type ParticipantRow = {
@@ -25,8 +26,9 @@ const FLAG_FIELDS: { key: keyof UpdateFields; label: string }[] = [
   ...FLAGGABLE_FIELDS,
 ];
 
-// The meeting's agenda: what closed, what opened, then everything the team flagged.
-// This is the reason the reveal exists, so it gets the most presence on the page.
+// The meeting's agenda: what the team flagged to discuss, then what closed and what
+// opened. This is the reason the reveal exists, so it leads the page, sets in larger
+// type for a shared screen, and sits on its own raised surface.
 export function AgendaPanel({
   participants,
   updates,
@@ -42,11 +44,11 @@ export function AgendaPanel({
   onToggleDiscussed?: (updateId: string, fieldKey: string) => void;
   animate?: boolean;
 }) {
-  const submitted = updates.filter((u) => u.submitted_at);
+  const shown = updates.filter((u) => isShown(u));
   const nameFor = (participantId: string) =>
     participants.find((p) => p.id === participantId)?.display_name ?? "Someone";
 
-  const offersClosed = submitted
+  const offersClosed = shown
     .map((u) => ({
       id: u.id,
       name: nameFor(u.participant_id),
@@ -54,7 +56,7 @@ export function AgendaPanel({
     }))
     .filter((item): item is { id: string; name: string; text: string } => item.text !== null);
 
-  const rolesOpened = submitted
+  const rolesOpened = shown
     .map((u) => ({ id: u.id, name: nameFor(u.participant_id), text: u.roles_opened }))
     .filter((item): item is { id: string; name: string; text: string } => !!item.text);
 
@@ -70,27 +72,22 @@ export function AgendaPanel({
       .map(keyOf)
   );
 
-  const flagged = submitted
-    .flatMap((u) =>
-      FLAG_FIELDS.filter(({ key }) => flagKeys.has(`${u.id}:${key}`)).map(({ key, label }) => ({
-        itemKey: `${u.id}:${key}`,
-        updateId: u.id,
-        fieldKey: key as string,
-        name: nameFor(u.participant_id),
-        label,
-        value:
-          key === "offers_made"
-            ? formatOffers(u.offers_made, u.offers_made_note)
-            : (u[key] as string | null),
-        discussed: discussedKeys.has(`${u.id}:${key}`),
-      }))
-    )
-    // Open items first; discussed ones sink to the bottom once the group moves on.
-    .sort((a, b) => Number(a.discussed) - Number(b.discussed));
-
-  if (offersClosed.length === 0 && rolesOpened.length === 0 && flagged.length === 0) {
-    return null;
-  }
+  // Order stays fixed (person, then field) so numbers never jump while the room is
+  // working through the list; finished items are marked in place.
+  const flagged = shown.flatMap((u) =>
+    FLAG_FIELDS.filter(({ key }) => flagKeys.has(`${u.id}:${key}`)).map(({ key, label }) => ({
+      itemKey: `${u.id}:${key}`,
+      updateId: u.id,
+      fieldKey: key as string,
+      name: nameFor(u.participant_id),
+      label,
+      value:
+        key === "offers_made"
+          ? formatOffers(u.offers_made, u.offers_made_note)
+          : (u[key] as string | null),
+      discussed: discussedKeys.has(`${u.id}:${key}`),
+    }))
+  );
 
   const remaining = flagged.filter((f) => !f.discussed).length;
   const hasInfo = offersClosed.length > 0 || rolesOpened.length > 0;
@@ -98,93 +95,111 @@ export function AgendaPanel({
   return (
     <section
       aria-labelledby="agenda-heading"
-      className={`rounded-3xl border border-marmol bg-marmol/50 p-6 sm:p-8 dark:border-white/15 dark:bg-white/8 ${
+      className={`rounded-3xl border border-grafite/20 bg-white p-6 shadow-[0_1px_2px_rgba(46,43,43,0.08),0_16px_40px_-16px_rgba(46,43,43,0.25)] sm:p-8 dark:border-white/25 dark:bg-white/[0.12] dark:shadow-none ${
         animate ? "arrive" : ""
       }`}
       style={animate ? ({ "--arrive-delay": "140ms" } as CSSProperties) : undefined}
     >
       <h2
         id="agenda-heading"
-        className="font-heading text-3xl font-bold text-ardesia dark:text-marmol"
+        className="font-heading text-4xl font-bold text-ardesia dark:text-marmol"
       >
         Agenda
       </h2>
 
       <div
-        className={`mt-6 grid gap-8 ${
-          hasInfo && flagged.length > 0 ? "md:grid-cols-[1fr_1.4fr] md:gap-12" : ""
+        className={`mt-6 grid gap-10 ${
+          hasInfo ? "md:grid-cols-[1.5fr_1fr] md:gap-14" : ""
         }`}
       >
-        {hasInfo && (
-          <div className="flex flex-col gap-7">
-            <AgendaGroup title="Offers closed" icon="💰" items={offersClosed} />
-            <AgendaGroup title="New roles opened" icon="🧭" items={rolesOpened} />
-          </div>
-        )}
+        <div>
+          <h3 className="flex items-center gap-2 font-heading text-2xl font-bold text-ember-ink">
+            <FlagIcon filled className="size-6" />
+            Flagged for discussion
+          </h3>
 
-        {flagged.length > 0 && (
-          <div>
-            <h3 className="flex items-center gap-2 font-heading text-xl font-bold text-ember-ink">
-              <FlagIcon filled className="size-5" />
-              Flagged for discussion
-            </h3>
-            <p className="mt-1 text-sm text-grafite dark:text-marmol/70">
-              {remaining === 0
-                ? "All discussed."
-                : `${remaining} left to discuss`}
+          {flagged.length === 0 ? (
+            <p className="mt-3 text-base text-grafite dark:text-marmol/80">
+              Nothing flagged yet. Use Flag on any card to add a topic here.
             </p>
-            <ol className="mt-4 flex flex-col gap-5">
-              {flagged.map((item, index) => (
-                <li key={item.itemKey} className="flex gap-3">
-                  <span
-                    aria-hidden="true"
-                    className="mt-0.5 w-6 shrink-0 text-right font-heading text-lg font-bold tabular-nums text-grafite dark:text-marmol/60"
-                  >
-                    {index + 1}.
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p
-                      className={`text-sm font-semibold ${
-                        item.discussed
-                          ? "text-grafite dark:text-marmol/60"
-                          : "text-ardesia dark:text-marmol"
-                      }`}
+          ) : (
+            <>
+              <p
+                className={`mt-1 flex items-center gap-1.5 text-base ${
+                  remaining === 0
+                    ? "font-semibold text-ember-ink"
+                    : "text-grafite dark:text-marmol/80"
+                }`}
+              >
+                {remaining === 0 ? (
+                  <>
+                    <CheckIcon className="size-5" />
+                    All discussed. Nice work.
+                  </>
+                ) : (
+                  `${remaining} left to discuss`
+                )}
+              </p>
+              <ol className="mt-5 flex flex-col gap-6">
+                {flagged.map((item, index) => (
+                  <li key={item.itemKey} className="flex gap-4">
+                    <span
+                      aria-hidden="true"
+                      className="w-8 shrink-0 text-right font-heading text-2xl font-bold tabular-nums text-grafite dark:text-marmol/60"
                     >
-                      {item.name} · {item.label}
-                    </p>
-                    <p
-                      className={`whitespace-pre-line ${
-                        item.discussed
-                          ? "text-grafite line-through decoration-1 dark:text-marmol/60"
-                          : "text-ardesia dark:text-marmol"
-                      }`}
-                    >
-                      {item.value}
-                    </p>
-                    {(canMarkDiscussed || item.discussed) && (
-                      <div className="mt-2">
-                        {canMarkDiscussed && onToggleDiscussed ? (
-                          <button
-                            type="button"
-                            onClick={() => onToggleDiscussed(item.updateId, item.fieldKey)}
-                            aria-pressed={item.discussed}
-                            className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-grafite/30 px-2.5 text-xs font-semibold text-grafite transition hover:border-ember-ink hover:text-ember-ink max-sm:min-h-11 dark:border-white/25 dark:text-marmol/80"
-                          >
-                            <CheckIcon className="size-3.5" />
-                            {item.discussed ? "Discussed. Undo" : "Mark discussed"}
-                          </button>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-grafite dark:text-marmol/70">
-                            <CheckIcon className="size-3.5" />
-                            Discussed
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ol>
+                      {index + 1}.
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={`text-base font-semibold ${
+                          item.discussed
+                            ? "text-grafite dark:text-marmol/60"
+                            : "text-ardesia dark:text-marmol"
+                        }`}
+                      >
+                        {item.name} · {item.label}
+                      </p>
+                      <p
+                        className={`whitespace-pre-line text-lg [overflow-wrap:anywhere] sm:text-xl ${
+                          item.discussed
+                            ? "text-grafite line-through decoration-1 dark:text-marmol/60"
+                            : "text-ardesia dark:text-marmol"
+                        }`}
+                      >
+                        {item.value}
+                      </p>
+                      {(canMarkDiscussed || item.discussed) && (
+                        <div className="mt-2">
+                          {canMarkDiscussed && onToggleDiscussed ? (
+                            <button
+                              type="button"
+                              onClick={() => onToggleDiscussed(item.updateId, item.fieldKey)}
+                              aria-pressed={item.discussed}
+                              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-grafite/50 px-3 text-sm font-semibold text-grafite transition hover:border-ember-ink hover:text-ember-ink max-sm:min-h-11 dark:border-white/40 dark:text-marmol/80"
+                            >
+                              <CheckIcon className="size-4" />
+                              {item.discussed ? "Discussed. Undo" : "Mark discussed"}
+                            </button>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-grafite dark:text-marmol/70">
+                              <CheckIcon className="size-4" />
+                              Discussed
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
+        </div>
+
+        {hasInfo && (
+          <div className="flex flex-col gap-8">
+            <AgendaGroup title="Offers closed" icon={<OffersIcon className="size-5" />} items={offersClosed} />
+            <AgendaGroup title="New roles opened" icon={<RolesIcon className="size-5" />} items={rolesOpened} />
           </div>
         )}
       </div>
@@ -198,19 +213,22 @@ function AgendaGroup({
   items,
 }: {
   title: string;
-  icon: string;
+  icon: ReactNode;
   items: { id: string; name: string; text: string }[];
 }) {
   if (items.length === 0) return null;
   return (
     <div>
-      <h3 className="font-heading text-xl font-bold text-ardesia dark:text-marmol">
-        <span aria-hidden="true">{icon} </span>
+      <h3 className="flex items-center gap-2 font-heading text-xl font-bold text-ardesia dark:text-marmol">
+        <span className="text-ember-ink">{icon}</span>
         {title}
       </h3>
-      <ul className="mt-2 flex flex-col gap-1.5">
+      <ul className="mt-2 flex flex-col gap-2">
         {items.map((item) => (
-          <li key={item.id} className="text-ardesia dark:text-marmol">
+          <li
+            key={item.id}
+            className="text-base [overflow-wrap:anywhere] text-ardesia dark:text-marmol"
+          >
             <span className="font-semibold">{item.name}</span>
             <span className="text-grafite dark:text-marmol/70"> · </span>
             {item.text}

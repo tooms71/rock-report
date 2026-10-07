@@ -40,7 +40,7 @@ export function ConfirmButton({
     <div
       role="group"
       aria-label={label}
-      className="flex flex-wrap items-center gap-3 rounded-lg border border-marmol px-4 py-3 dark:border-white/20"
+      className="flex flex-wrap items-center gap-3 rounded-lg border border-grafite/70 px-4 py-3 dark:border-white/40"
     >
       <p className="text-sm text-ardesia dark:text-marmol">{prompt}</p>
       <div className="flex gap-2">

@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import type { UpdateFields } from "@/components/WritingForm";
 import { FlagIcon } from "@/components/Icons";
+import { isShown } from "@/lib/updates";
 
 type ParticipantRow = {
   id: string;
@@ -108,21 +109,24 @@ function UpdateCard({
       ? undefined
       : ({ "--arrive-delay": `${enterDelayMs}ms` } as CSSProperties);
 
-  if (!update || !update.submitted_at) {
+  if (!update || !isShown(update)) {
     return (
-      <div
+      <article
         style={arriveStyle}
-        className={`rounded-2xl border border-marmol p-5 dark:border-white/15 ${arriveClass}`}
+        aria-label={`${name}: no update this week`}
+        className={`rounded-2xl border border-grafite/20 p-5 dark:border-white/15 ${arriveClass}`}
       >
         <h3 className="font-heading text-xl font-bold text-ardesia dark:text-marmol">
           {name}
         </h3>
         <p className="mt-2 text-sm text-grafite dark:text-marmol/70">
-          Didn&apos;t submit an update this week.
+          No update this week.
         </p>
-      </div>
+      </article>
     );
   }
+
+  const lateDraft = !update.submitted_at;
 
   const flagsFor = (key: string) =>
     reactions.filter(
@@ -134,9 +138,10 @@ function UpdateCard({
   const hasOffers = update.offers_made !== null || update.offers_closed !== null;
 
   return (
-    <div
+    <article
       style={arriveStyle}
-      className={`rounded-2xl border border-marmol bg-marmol/60 p-5 dark:border-white/15 dark:bg-white/8 ${arriveClass}`}
+      aria-label={`${name}'s update`}
+      className={`min-w-0 rounded-2xl border border-grafite/20 p-5 dark:border-white/15 ${arriveClass}`}
     >
       <div className="flex items-center gap-2">
         <h3 className="font-heading text-xl font-bold text-ardesia dark:text-marmol">
@@ -150,6 +155,11 @@ function UpdateCard({
           </span>
         )}
       </div>
+      {lateDraft && (
+        <p className="mt-1 text-xs text-grafite dark:text-marmol/70">
+          Time ran out. Here&apos;s what was saved.
+        </p>
+      )}
 
       {hasOffers && (
         <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-4">
@@ -162,6 +172,7 @@ function UpdateCard({
             label="Offers out"
             value={update.offers_made}
             note={update.offers_made_note}
+            subject={name}
             flag={{
               count: flagsFor("offers_made").length,
               flaggedByMe: flagsFor("offers_made").some(
@@ -179,6 +190,7 @@ function UpdateCard({
           <Field
             key={key}
             label={label}
+            subject={name}
             value={update[key] as string | null}
             count={flagsFor(key).length}
             flaggedByMe={flagsFor(key).some((r) => r.participant_id === myParticipantId)}
@@ -187,7 +199,7 @@ function UpdateCard({
           />
         ))}
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -195,12 +207,14 @@ function UpdateCard({
 // agenda gets built, so it has to be findable and easy to hit.
 function FlagButton({
   label,
+  subject,
   count,
   flaggedByMe,
   readOnly,
   onToggle,
 }: {
   label: string;
+  subject: string;
   count: number;
   flaggedByMe: boolean;
   readOnly: boolean;
@@ -222,7 +236,7 @@ function FlagButton({
       type="button"
       onClick={onToggle}
       aria-pressed={flaggedByMe}
-      aria-label={`Flag “${label}” for discussion`}
+      aria-label={`Flag ${subject}’s “${label}” for discussion`}
       className={`inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition max-sm:min-h-11 ${
         flaggedByMe
           ? "border-ember-fill bg-ember-fill text-white"
@@ -238,11 +252,13 @@ function FlagButton({
 
 function Stat({
   label,
+  subject,
   value,
   note,
   flag,
 }: {
   label: string;
+  subject?: string;
   value: number | null;
   note: string | null;
   flag?: {
@@ -254,7 +270,7 @@ function Stat({
 }) {
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-grafite dark:text-marmol/70">
+      <p className="text-sm font-semibold text-grafite dark:text-marmol/70">
         {label}
       </p>
       {value === null ? (
@@ -262,7 +278,7 @@ function Stat({
           —
         </p>
       ) : (
-        <p className="tabular-nums text-ardesia dark:text-marmol">
+        <p className="tabular-nums [overflow-wrap:anywhere] text-ardesia dark:text-marmol">
           {value}
           {note && <span className="text-grafite dark:text-marmol/80"> · {note}</span>}
         </p>
@@ -271,6 +287,7 @@ function Stat({
         <div className="mt-1.5">
           <FlagButton
             label={label}
+            subject={subject ?? ""}
             count={flag.count}
             flaggedByMe={flag.flaggedByMe}
             readOnly={flag.readOnly}
@@ -284,6 +301,7 @@ function Stat({
 
 function Field({
   label,
+  subject,
   value,
   count,
   flaggedByMe,
@@ -291,6 +309,7 @@ function Field({
   onToggleFlag,
 }: {
   label: string;
+  subject: string;
   value: string | null;
   count: number;
   flaggedByMe: boolean;
@@ -302,18 +321,19 @@ function Field({
   return (
     <div>
       <div className="flex min-h-8 items-center justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-grafite dark:text-marmol/70">
+        <p className="text-sm font-semibold text-grafite dark:text-marmol/70">
           {label}
         </p>
         <FlagButton
           label={label}
+          subject={subject}
           count={count}
           flaggedByMe={flaggedByMe}
           readOnly={readOnly}
           onToggle={onToggleFlag}
         />
       </div>
-      <p className="whitespace-pre-line text-ardesia dark:text-marmol">{value}</p>
+      <p className="whitespace-pre-line [overflow-wrap:anywhere] text-ardesia dark:text-marmol">{value}</p>
     </div>
   );
 }

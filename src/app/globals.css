@@ -20,6 +20,7 @@
   --color-grafite: #595959;
   --color-nuvola: #9a938e;
   --color-marmol: #eeeeee;
+  --color-stone: #f2efea; /* warm marble paper for light-mode surfaces */
 
   --font-heading: "PT Serif", Georgia, serif;
   --font-body: "Manrope", ui-sans-serif, system-ui, sans-serif;
@@ -124,5 +125,56 @@ textarea {
 
   .timer-urgent {
     animation: none;
+  }
+}
+
+/* Marble: faint veining drawn as an inline SVG, so no image files are needed. */
+.marble {
+  background-color: #f2efea;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='200' viewBox='0 0 600 200' preserveAspectRatio='none'%3E%3Cpath d='M-10 150 C120 110 190 190 320 130 S520 60 620 100' fill='none' stroke='%232e2b2b' stroke-opacity='.09' stroke-width='1.4'/%3E%3Cpath d='M-10 60 C90 90 170 20 300 50 S500 140 620 80' fill='none' stroke='%232e2b2b' stroke-opacity='.06' stroke-width='1'/%3E%3Cpath d='M200 -10 C230 60 180 120 240 210' fill='none' stroke='%232e2b2b' stroke-opacity='.06' stroke-width='1'/%3E%3C/svg%3E");
+  background-size: 100% 100%;
+}
+
+@media (prefers-color-scheme: dark) {
+  .marble {
+    background-color: rgb(255 255 255 / 0.08);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='200' viewBox='0 0 600 200' preserveAspectRatio='none'%3E%3Cpath d='M-10 150 C120 110 190 190 320 130 S520 60 620 100' fill='none' stroke='%23ffffff' stroke-opacity='.09' stroke-width='1.4'/%3E%3Cpath d='M-10 60 C90 90 170 20 300 50 S500 140 620 80' fill='none' stroke='%23ffffff' stroke-opacity='.06' stroke-width='1'/%3E%3Cpath d='M200 -10 C230 60 180 120 240 210' fill='none' stroke='%23ffffff' stroke-opacity='.06' stroke-width='1'/%3E%3C/svg%3E");
+  }
+}
+
+/* Pens-down countdown: 3, 2, 1 land and fade as the form is about to go. */
+@keyframes beat {
+  0% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+
+@keyframes beat-fade {
+  0% {
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.count-beat {
+  animation: beat 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .count-beat {
+    animation: beat-fade 900ms ease-out both;
   }
 }
