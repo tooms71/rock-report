@@ -47,7 +47,9 @@ export function buildMeetingNotes({
         "Flagged for discussion",
         ...flagged.map(
           (f, index) =>
-            `${index + 1}. ${f.discussed ? "[discussed]" : "[not discussed]"} ${f.name} · ${f.label}: ${oneLine(f.value ?? "")}`
+            `${index + 1}. ${f.discussed ? "[discussed]" : "[not discussed]"} ${f.name} · ${f.label}${
+              f.flagCount > 1 ? ` (${f.flagCount} flags)` : ""
+            }: ${oneLine(f.value ?? "")}`
         ),
       ].join("\n")
     );

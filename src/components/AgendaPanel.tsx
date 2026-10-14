@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { ReactionRow } from "@/components/RevealGrid";
-import { CheckIcon, FlagIcon, OffersIcon, RolesIcon } from "@/components/Icons";
+import { AlertIcon, CheckIcon, FlagIcon, OffersIcon, RolesIcon } from "@/components/Icons";
 import { ClampedText } from "@/components/ClampedText";
 import {
   buildAgenda,
@@ -149,8 +149,14 @@ export function AgendaPanel({
                       </details>
                     ) : (
                       <>
-                        <p className="text-base font-semibold text-ardesia dark:text-marmol">
-                          {item.name} · {item.label}
+                        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-base font-semibold text-ardesia dark:text-marmol">
+                          {item.blocked && (
+                            <AlertIcon className="size-5 shrink-0 text-ember-ink" />
+                          )}
+                          <span>
+                            {item.name} · {item.label}
+                          </span>
+                          <FlagCount count={item.flagCount} />
                         </p>
                         <ClampedText
                           lines={5}
@@ -185,6 +191,17 @@ export function AgendaPanel({
         </div>
       )}
     </section>
+  );
+}
+
+// How many people flagged this item; the agenda is ranked by it.
+function FlagCount({ count }: { count: number }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-ember-ink/50 px-2 py-0.5 text-sm font-semibold tabular-nums text-ember-ink">
+      <FlagIcon filled className="size-3.5" />
+      {count}
+      <span className="sr-only"> {count === 1 ? "flag" : "flags"}</span>
+    </span>
   );
 }
 

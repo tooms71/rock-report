@@ -47,6 +47,17 @@ export function CheckIcon({ className }: IconProps) {
   );
 }
 
+// Blocked or struggling: an exclamation mark in a circle.
+export function AlertIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7.5v5.5" />
+      <path d="M12 16.5v.01" />
+    </Svg>
+  );
+}
+
 // A signed offer: a seal with a tick.
 export function OffersIcon({ className }: IconProps) {
   return (

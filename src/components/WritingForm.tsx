@@ -11,6 +11,7 @@ export type UpdateFields = {
   offers_closed_note: string | null;
   roles_opened: string | null;
   top_priorities: string | null;
+  need_brain_on: string | null; // "Blocked or struggling"
   anything_else: string | null;
 };
 
@@ -133,6 +134,7 @@ export function WritingForm({
 
       <TextField
         label="New roles opened"
+        placeholder="List client and role"
         value={fields.roles_opened}
         onChange={(v) => updateField("roles_opened", v)}
         rows={2}
@@ -147,8 +149,16 @@ export function WritingForm({
       />
 
       <TextField
-        label="Anything else?"
-        hint="Something you learned or that surprised you, where you could use another brain, something interesting about your week"
+        label="Blocked or struggling?"
+        hint="Anything you're stuck on or finding hard that you'd like to bring to the group. It goes straight onto the agenda."
+        value={fields.need_brain_on}
+        onChange={(v) => updateField("need_brain_on", v)}
+        rows={3}
+      />
+
+      <TextField
+        label="Is there anything you built or saw this week that was cool or valuable to share?"
+        hint="Something you built, learned or noticed"
         value={fields.anything_else}
         onChange={(v) => updateField("anything_else", v)}
         rows={3}

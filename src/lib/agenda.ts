@@ -26,6 +26,8 @@ export type FlaggedItem = {
   label: string;
   value: string | null;
   discussed: boolean;
+  flagCount: number;
+  blocked: boolean;
 };
 
 const FLAG_FIELDS: { key: keyof UpdateFields; label: string }[] = [
@@ -76,11 +78,14 @@ export function buildAgenda(
   );
 
   const keyOf = (r: ReactionRow) => `${r.target_update_id}:${r.field_key}`;
-  const flagKeys = new Set(
-    reactions
-      .filter((r) => r.target_type === "field" && r.emoji === FLAG_EMOJI && r.field_key)
-      .map(keyOf)
-  );
+  // Who flagged each item, so several people can add to its count.
+  const flagVoters = new Map<string, Set<string>>();
+  for (const r of reactions) {
+    if (r.target_type !== "field" || r.emoji !== FLAG_EMOJI || !r.field_key) continue;
+    const key = keyOf(r);
+    if (!flagVoters.has(key)) flagVoters.set(key, new Set());
+    flagVoters.get(key)!.add(r.participant_id);
+  }
   const discussedKeys = new Set(
     reactions
       .filter((r) => r.target_type === "field" && r.emoji === DISCUSSED_EMOJI && r.field_key)
@@ -88,41 +93,47 @@ export function buildAgenda(
   );
 
   const flagged: FlaggedItem[] = shown.flatMap((u) =>
-    FLAG_FIELDS.filter(({ key }) => flagKeys.has(`${u.id}:${key}`)).map(({ key, label }) => ({
-      itemKey: `${u.id}:${key}`,
-      updateId: u.id,
-      fieldKey: key as string,
-      name: nameFor(u.participant_id),
-      label,
-      value:
-        key === "offers_made"
-          ? formatOffers(u.offers_made, u.offers_made_note)
-          : (u[key] as string | null),
-      discussed: discussedKeys.has(`${u.id}:${key}`),
-    }))
+    FLAG_FIELDS.flatMap(({ key, label }) => {
+      const itemKey = `${u.id}:${key}`;
+      const voters = flagVoters.get(itemKey);
+      // Anything written under "Blocked or struggling" joins the agenda on its own.
+      const blocked = key === "need_brain_on" && !!u.need_brain_on?.trim();
+      if (!voters && !blocked) return [];
+      // Writing it counts as the author flagging it, so it never starts at zero.
+      const flagCount = (voters?.size ?? 0) + (blocked && !voters?.has(u.participant_id) ? 1 : 0);
+      return [
+        {
+          itemKey,
+          updateId: u.id,
+          fieldKey: key as string,
+          name: nameFor(u.participant_id),
+          label,
+          value:
+            key === "offers_made"
+              ? formatOffers(u.offers_made, u.offers_made_note)
+              : (u[key] as string | null),
+          discussed: discussedKeys.has(itemKey),
+          flagCount,
+          blocked,
+        },
+      ];
+    })
   );
+
+  // Most flagged first; blocked items win ties; otherwise join order (the sort is stable).
+  flagged.sort((a, b) => b.flagCount - a.flagCount || Number(b.blocked) - Number(a.blocked));
 
   return { shown, nameFor, offersClosed, offersClosedTotal, rolesOpened, flagged };
 }
 
 // One-line counts for a session, used on the archive list and detail pages.
 export function summarizeSession(updates: AgendaUpdate[], reactions: ReactionRow[]) {
-  const shownIds = new Set(updates.filter((u) => isShown(u)).map((u) => u.id));
-  const keysFor = (emoji: string) =>
-    new Set(
-      reactions
-        .filter(
-          (r) =>
-            r.target_type === "field" &&
-            r.emoji === emoji &&
-            r.field_key &&
-            shownIds.has(r.target_update_id)
-        )
-        .map((r) => `${r.target_update_id}:${r.field_key}`)
-    );
-  const flagged = keysFor(FLAG_EMOJI);
-  const discussed = [...keysFor(DISCUSSED_EMOJI)].filter((k) => flagged.has(k)).length;
-  return { updates: shownIds.size, flagged: flagged.size, discussed };
+  const { shown, flagged } = buildAgenda([], updates, reactions);
+  return {
+    updates: shown.length,
+    flagged: flagged.length,
+    discussed: flagged.filter((f) => f.discussed).length,
+  };
 }
 
 export function formatSessionSummary(summary: ReturnType<typeof summarizeSession>): string {

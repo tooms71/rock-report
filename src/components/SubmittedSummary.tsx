@@ -9,7 +9,8 @@ export function SubmittedSummary({ fields }: { fields: UpdateFields }) {
     { label: "Offers out", value: formatOffers(fields.offers_made, fields.offers_made_note) },
     { label: "New roles opened", value: fields.roles_opened },
     { label: "Top priorities of the week", value: fields.top_priorities },
-    { label: "Anything else?", value: fields.anything_else },
+    { label: "Blocked or struggling", value: fields.need_brain_on },
+    { label: "Cool or valuable to share", value: fields.anything_else },
   ].filter((row): row is { label: string; value: string } => !!row.value);
 
   return (

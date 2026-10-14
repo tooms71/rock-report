@@ -7,6 +7,9 @@ export const UPDATE_FIELD_KEYS: (keyof UpdateFields)[] = [
   "offers_closed_note",
   "roles_opened",
   "top_priorities",
+  // Holds "Blocked or struggling". The column predates that prompt (it used to be
+  // "where I could use another brain"), which is close enough that no migration is needed.
+  "need_brain_on",
   "anything_else",
 ];
 

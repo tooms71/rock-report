@@ -18,6 +18,7 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 import { CopyButton } from "@/components/CopyButton";
 import { SubmittedSummary } from "@/components/SubmittedSummary";
 import { buildMeetingNotes } from "@/lib/summary";
+import { buildAgenda } from "@/lib/agenda";
 import { inputClass } from "@/lib/ui";
 import { isShown } from "@/lib/updates";
 import { isSimilarName } from "@/lib/names";
@@ -738,18 +739,10 @@ export default function Home() {
     "the facilitator";
   const showingResults =
     !!me && (session?.phase === "reveal" || session?.phase === "closed");
-  const flaggedKeys = new Set(
-    reactions
-      .filter((r) => r.target_type === "field" && r.emoji === FLAG_EMOJI)
-      .map((r) => `${r.target_update_id}:${r.field_key}`)
-  );
-  const discussedKeys = new Set(
-    reactions
-      .filter((r) => r.target_type === "field" && r.emoji === DISCUSSED_EMOJI)
-      .map((r) => `${r.target_update_id}:${r.field_key}`)
-  );
-  const flaggedTopicCount = flaggedKeys.size;
-  const discussedCount = [...flaggedKeys].filter((k) => discussedKeys.has(k)).length;
+  // Counts come from the agenda itself, so items added by "Blocked or struggling" count too.
+  const agendaItems = buildAgenda(participants, allUpdates, reactions).flagged;
+  const flaggedTopicCount = agendaItems.length;
+  const discussedCount = agendaItems.filter((item) => item.discussed).length;
   const leftToDiscuss = flaggedTopicCount - discussedCount;
 
   const timerRatio =
@@ -1186,7 +1179,7 @@ export default function Home() {
             </h2>
             {session.phase === "reveal" && !isViewer && (
               <p className="-mt-2 text-base text-grafite dark:text-marmol/80">
-                Click or tap Flag on anything the team should discuss.
+                Click or tap Flag on anything the team should discuss. The more flags, the higher it sits on the agenda.
               </p>
             )}
             <RevealGrid

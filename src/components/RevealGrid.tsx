@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { UpdateFields } from "@/components/WritingForm";
-import { FlagIcon } from "@/components/Icons";
+import { AlertIcon, FlagIcon } from "@/components/Icons";
 import { ClampedText } from "@/components/ClampedText";
 import { isShown } from "@/lib/updates";
 
@@ -39,7 +39,8 @@ export function formatOffers(value: number | null, note: string | null): string 
 export const FLAGGABLE_FIELDS: { key: keyof UpdateFields; label: string }[] = [
   { key: "roles_opened", label: "New roles opened" },
   { key: "top_priorities", label: "Top priorities of the week" },
-  { key: "anything_else", label: "Anything else?" },
+  { key: "need_brain_on", label: "Blocked or struggling" },
+  { key: "anything_else", label: "Cool or valuable to share" },
 ];
 
 // Cards cascade in after the agenda has landed (see .arrive in globals.css).
@@ -195,6 +196,7 @@ function UpdateCard({
         {FLAGGABLE_FIELDS.map(({ key, label }) => (
           <Field
             key={key}
+            icon={key === "need_brain_on" ? <AlertIcon className="size-4 shrink-0 text-ember-ink" /> : undefined}
             label={label}
             subject={name}
             value={update[key] as string | null}
@@ -334,6 +336,7 @@ function Stat({
 }
 
 function Field({
+  icon,
   label,
   subject,
   value,
@@ -342,6 +345,7 @@ function Field({
   readOnly,
   onToggleFlag,
 }: {
+  icon?: ReactNode;
   label: string;
   subject: string;
   value: string | null;
@@ -355,7 +359,8 @@ function Field({
   return (
     <div>
       <div className="flex min-h-8 items-center justify-between gap-2">
-        <p className="text-sm font-semibold text-grafite dark:text-marmol/80">
+        <p className="flex items-center gap-1.5 text-sm font-semibold text-grafite dark:text-marmol/80">
+          {icon}
           {label}
         </p>
         <FlagButton

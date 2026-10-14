@@ -44,9 +44,10 @@ create table if not exists updates (
   unique (session_id, participant_id)
 );
 
--- learned_or_surprised and need_brain_on are no longer used by the app (their
--- prompts were folded into "Anything else?") but the columns are kept so old
--- sessions' data isn't lost.
+-- learned_or_surprised is no longer used by the app (its prompt was folded into
+-- "Anything else?") but the column is kept so old sessions' data isn't lost.
+-- need_brain_on now stores the "Blocked or struggling" answer. The column predates
+-- that prompt (it was "where I could use another brain"), so no migration is needed.
 
 -- Safe to re-run: adds columns if this script ran before they existed.
 alter table if exists updates add column if not exists anything_else text;
