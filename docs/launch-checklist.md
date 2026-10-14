@@ -11,22 +11,29 @@ for a link the team opens, because updates include client names and hiring detai
 
 - [x] Does Carrara use **Google Workspace** for email? Yes (confirmed), so the sign-in
       plan below stands.
-- [ ] Who administers Carrara's **Google Workspace / Google Cloud**?
+- [x] The company email domain is **@carrara.is**. Sign-in is limited to it.
+- [ ] Can Shannon's @carrara.is account create a Google Cloud project on its own? (Often
+      yes. A colleague who has done this says to sign in at console.cloud.google.com with
+      the @carrara.is account and try. If it is blocked, ask whoever administers Carrara's
+      Google Workspace / Google Cloud.)
 - [ ] Who administers Carrara's **Notion** (only needed for the optional open-roles table)?
 - [ ] Is it OK for the app to hold a Notion key, or is a plain link to the Notion page enough?
       (Right now it is a plain link.)
 
 ## Who does what
 
-### Someone with Google Cloud / Workspace admin access
-- [ ] Create a Google Cloud project for Rock Report.
-- [ ] Set up the **OAuth consent screen** with user type **Internal**. This is the key
-      step: Google itself then refuses anyone outside Carrara.
-- [ ] Create an **OAuth client ID** (type: Web application).
+### Google Cloud setup (Shannon, or an admin if her account is blocked)
+- [ ] Sign in at console.cloud.google.com with the @carrara.is account and create a
+      Google Cloud project for Rock Report.
+- [ ] In **Google Auth Platform**, fill in **Branding** (app name, support email), then
+      open **Audience** and choose **Internal**. This is the key step: Google itself then
+      refuses anyone outside Carrara. (A project that is not under Carrara's Workspace
+      shows "External" instead, which allows anyone with a Google account, so check this.)
+- [ ] Under **Clients**, create an **OAuth client ID** (type: Web application).
 - [ ] Add the redirect address Supabase gives us (it looks like
       `https://<project>.supabase.co/auth/v1/callback`).
-- [ ] Hand the **client ID** and **client secret** to Shannon through a secure channel
-      (a password manager, not chat or email).
+- [ ] Keep the **client ID** and **client secret** private: password manager only, never
+      chat, email or git. If an admin created them, they hand them over the same way.
 
 ### Shannon (with Claude)
 - [ ] Create a private **GitHub** repository and push the code. (There is none yet.)
@@ -39,8 +46,9 @@ for a link the team opens, because updates include client names and hiring detai
       turned away.
 
 ### Claude builds in the app
-- [ ] A "Sign in with Google" screen, and a second check that the email ends in the
-      Carrara domain.
+- [ ] A "Sign in with Google" screen, and a second check that the email ends in
+      @carrara.is. Google only. We do not build our own email and password login, because
+      that means storing and resetting passwords.
 - [ ] People join with their Google name instead of typing one.
 - [ ] Database rules tying every read and write to the signed-in person.
 
