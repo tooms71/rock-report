@@ -237,8 +237,8 @@ function NumberField({
       />
       <input
         type="text"
-        aria-label={`${label}: optional note`}
-        placeholder="Optional note"
+        aria-label={`${label}: client and role`}
+        placeholder="List client and role"
         value={note ?? ""}
         onChange={(e) => onNoteChange(e.target.value || null)}
         className={`${inputClass} py-1.5 text-sm`}
