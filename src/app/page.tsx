@@ -16,6 +16,7 @@ import {
 import { AgendaPanel } from "@/components/AgendaPanel";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { CopyButton } from "@/components/CopyButton";
+import { OpenRoles } from "@/components/OpenRoles";
 import { SubmittedSummary } from "@/components/SubmittedSummary";
 import { buildMeetingNotes } from "@/lib/summary";
 import { buildAgenda } from "@/lib/agenda";
@@ -1194,6 +1195,8 @@ export default function Home() {
           </section>
 
           {session.phase === "closed" ? <RockCard /> : <RockCard compact />}
+
+          <OpenRoles />
 
         </div>
       )}
