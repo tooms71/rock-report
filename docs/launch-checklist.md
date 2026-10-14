@@ -9,8 +9,8 @@ for a link the team opens, because updates include client names and hiring detai
 
 ## Decisions to confirm first
 
-- [ ] Does Carrara use **Google Workspace** for email? (Assumed yes. If not, the sign-in
-      plan changes to email links.)
+- [x] Does Carrara use **Google Workspace** for email? Yes (confirmed), so the sign-in
+      plan below stands.
 - [ ] Who administers Carrara's **Google Workspace / Google Cloud**?
 - [ ] Who administers Carrara's **Notion** (only needed for the optional open-roles table)?
 - [ ] Is it OK for the app to hold a Notion key, or is a plain link to the Notion page enough?
