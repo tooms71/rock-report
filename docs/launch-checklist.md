@@ -12,8 +12,8 @@ for a link the team opens, because updates include client names and hiring detai
 - [x] Does Carrara use **Google Workspace** for email? Yes (confirmed), so the sign-in
       plan below stands.
 - [x] The company email domain is **@carrara.is**. Sign-in is limited to it.
-- [ ] Can Shannon's @carrara.is account create a Google Cloud project on its own? (Often
-      yes. A colleague who has done this says to sign in at console.cloud.google.com with
+- [x] Can Shannon's @carrara.is account create a Google Cloud project on its own? Yes,
+      done. (Often yes. A colleague who has done this says to sign in at console.cloud.google.com with
       the @carrara.is account and try. If it is blocked, ask whoever administers Carrara's
       Google Workspace / Google Cloud.)
 - [ ] Who administers Carrara's **Notion** (only needed for the optional open-roles table)?
@@ -23,27 +23,28 @@ for a link the team opens, because updates include client names and hiring detai
 ## Who does what
 
 ### Google Cloud setup (Shannon, or an admin if her account is blocked)
-- [ ] Sign in at console.cloud.google.com with the @carrara.is account and create a
+- [x] Sign in at console.cloud.google.com with the @carrara.is account and create a
       Google Cloud project for Rock Report.
-- [ ] In **Google Auth Platform**, fill in **Branding** (app name, support email), then
+- [x] In **Google Auth Platform**, fill in **Branding** (app name, support email), then
       open **Audience** and choose **Internal**. This is the key step: Google itself then
       refuses anyone outside Carrara. (A project that is not under Carrara's Workspace
       shows "External" instead, which allows anyone with a Google account, so check this.)
-- [ ] Under **Clients**, create an **OAuth client ID** (type: Web application).
-- [ ] Add the redirect address Supabase gives us (it looks like
+- [x] Under **Clients**, create an **OAuth client ID** (type: Web application).
+- [x] Add the redirect address Supabase gives us (it looks like
       `https://<project>.supabase.co/auth/v1/callback`).
 - [ ] Keep the **client ID** and **client secret** private: password manager only, never
       chat, email or git. If an admin created them, they hand them over the same way.
 
 ### Shannon (with Claude)
 - [ ] Create a private **GitHub** repository and push the code. (There is none yet.)
-- [ ] In Supabase: turn on the **Google** sign-in provider and paste in the client ID and
+- [x] In Supabase: turn on the **Google** sign-in provider and paste in the client ID and
       secret from above.
-- [ ] In the Supabase SQL editor, run the small **sign-in column** change (the
+- [x] In the Supabase SQL editor, run the small **sign-in column** change (the
       "Sign-in with Google" block at the bottom of `supabase/schema.sql`). It is safe to run
       at any time.
-- [ ] Test signing in locally (see "Testing sign-in" below).
-- [ ] **Last,** run `supabase/lock-down.sql` in the SQL editor. This locks every table so
+- [x] Test signing in locally (see "Testing sign-in" below). Works.
+- [x] **Last,** run `supabase/lock-down.sql` in the SQL editor (done; signed-out reads return
+      nothing and writes are refused). This locks every table so
       only signed-in @carrara.is people can read or write. Then check that a signed-out
       request is refused.
 - [ ] Create a **Vercel** account, import the repository, and add the settings below.
@@ -80,6 +81,16 @@ for a link the team opens, because updates include client names and hiring detai
 
 Secrets stay in Vercel, Supabase and `.env.local`. They never go in chat, email, a
 document, or git.
+
+## Still to do
+
+- [x] Turn off the Supabase **Email** provider (only Google is on).
+- [ ] Try a personal Gmail account to confirm Google refuses it.
+- [ ] Create a private GitHub repository and push the code.
+- [ ] Create the Vercel project, add the two settings, and deploy.
+- [ ] Add the live address to Supabase (Site URL and Redirect URLs) and to the Google OAuth
+      client (authorized redirect stays the Supabase callback), then test signing in there.
+- [ ] Share the link only after the live sign-in test passes.
 
 ## Order
 
