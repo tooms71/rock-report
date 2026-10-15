@@ -20,9 +20,9 @@ import { OpenRoles } from "@/components/OpenRoles";
 import { SubmittedSummary } from "@/components/SubmittedSummary";
 import { buildMeetingNotes } from "@/lib/summary";
 import { buildAgenda } from "@/lib/agenda";
-import { inputClass } from "@/lib/ui";
 import { isShown } from "@/lib/updates";
-import { isSimilarName } from "@/lib/names";
+import { displayNameFor } from "@/lib/names";
+import { signOut, useCurrentUser } from "@/components/AuthGate";
 import { CheckIcon } from "@/components/Icons";
 
 const WRITING_DURATION_MS = 3 * 60 * 1000;
@@ -45,6 +45,7 @@ type SessionRow = {
 type ParticipantRow = {
   id: string;
   session_id: string;
+  user_id: string | null;
   display_name: string;
   joined_at: string;
 };
@@ -56,32 +57,23 @@ type UpdateRow = UpdateFields & {
   submitted_at: string | null;
 };
 
-const NAME_KEY = "rockreport:name";
-
 export default function Home() {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<SessionRow | null>(null);
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
-  const [chosenMe, setChosenMe] = useState<ParticipantRow | null>(null);
-  const [savedName, setSavedName] = useState("");
-  const [optedOut, setOptedOut] = useState(false);
-  // If this browser remembers a name that's already in the session (a refresh, a
-  // laptop waking up), put the person straight back in; "Not you?" undoes it.
-  const autoMe =
-    !optedOut && savedName
-      ? participants.find(
-          (p) => p.display_name.trim().toLowerCase() === savedName.trim().toLowerCase()
-        ) ?? null
+  const user = useCurrentUser();
+  // Who I am in this session comes from my Google sign-in, not a typed name.
+  const myParticipant = participants.find((p) => p.user_id === user.id) ?? null;
+  const myDisplayName =
+    myParticipant?.display_name ??
+    displayNameFor(user, participants.map((p) => p.display_name));
+  // Opening a session that's already revealed or closed just reads it; the person isn't
+  // added as a participant (that would create an empty card for them).
+  const viewerMe: ParticipantRow | null =
+    !myParticipant && session && (session.phase === "reveal" || session.phase === "closed")
+      ? { id: VIEWER_ID, session_id: session.id, user_id: user.id, display_name: myDisplayName, joined_at: "" }
       : null;
-  const me = chosenMe ?? autoMe;
-  const [name, setName] = useState("");
-  // Set when the typed name is one typo away from someone already in the session.
-  const [nameSuggestion, setNameSuggestion] = useState<ParticipantRow | null>(null);
-
-  function updateName(value: string) {
-    setName(value);
-    setNameSuggestion(null);
-  }
+  const me = myParticipant ?? viewerMe;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -91,15 +83,6 @@ export default function Home() {
   // Highest remaining time seen, so the progress bar stays accurate after "+1 min".
   const [timerCeiling, setTimerCeiling] = useState(WRITING_DURATION_MS / 1000);
   const [reactions, setReactions] = useState<ReactionRow[]>([]);
-
-  // Prefill the name field from a previous visit.
-  useEffect(() => {
-    const saved = window.localStorage.getItem(NAME_KEY);
-    // localStorage isn't available during SSR, so this has to run after mount.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (saved) setName(saved);
-    if (saved) setSavedName(saved);
-  }, []);
 
   // Load this week's session (if any) and its participants.
   useEffect(() => {
@@ -401,9 +384,6 @@ export default function Home() {
   }, [session?.phase]);
 
   async function handleCreateSession() {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-
     setBusy(true);
     setError(null);
     try {
@@ -418,7 +398,11 @@ export default function Home() {
 
       const { data: participant, error: participantError } = await supabase
         .from("participants")
-        .insert({ session_id: newSession.id, display_name: trimmed })
+        .insert({
+          session_id: newSession.id,
+          user_id: user.id,
+          display_name: displayNameFor(user, []),
+        })
         .select()
         .single();
       if (participantError) throw participantError;
@@ -431,10 +415,8 @@ export default function Home() {
         .single();
       if (updateError) throw updateError;
 
-      window.localStorage.setItem(NAME_KEY, trimmed);
       setSession(updatedSession);
       setParticipants([participant]);
-      setChosenMe(participant);
     } catch {
       setError(CONNECTION_ERROR);
     } finally {
@@ -442,48 +424,18 @@ export default function Home() {
     }
   }
 
-  async function handleJoin(override?: { name: string; forceNew?: boolean }) {
-    if (!session) return;
-    const trimmed = (override?.name ?? name).trim();
-    if (!trimmed) return;
-
+  async function handleJoin() {
+    if (!session || myParticipant) return;
     setBusy(true);
     setError(null);
-    setNameSuggestion(null);
     try {
-      const existing = participants.find(
-        (p) => p.display_name.trim().toLowerCase() === trimmed.toLowerCase()
-      );
-
-      // "Shanon" vs "Shannon": ask before creating a second person who would never
-      // submit and would block the everyone-has-submitted reveal.
-      if (!existing && !override?.forceNew) {
-        const similar = participants.find((p) => isSimilarName(p.display_name, trimmed));
-        if (similar) {
-          setNameSuggestion(similar);
-          return;
-        }
-      }
-
-      let participant = existing ?? null;
-      if (!participant && (session.phase === "reveal" || session.phase === "closed")) {
-        window.localStorage.setItem(NAME_KEY, trimmed);
-        setChosenMe({ id: VIEWER_ID, session_id: session.id, display_name: trimmed, joined_at: "" });
-        return;
-      }
-      if (!participant) {
-        const { data, error: insertError } = await supabase
-          .from("participants")
-          .insert({ session_id: session.id, display_name: trimmed })
-          .select()
-          .single();
-        if (insertError) throw insertError;
-        participant = data;
-        setParticipants((prev) => [...prev, data]);
-      }
-
-      window.localStorage.setItem(NAME_KEY, trimmed);
-      setChosenMe(participant);
+      const { data, error: insertError } = await supabase
+        .from("participants")
+        .insert({ session_id: session.id, user_id: user.id, display_name: myDisplayName })
+        .select()
+        .single();
+      if (insertError) throw insertError;
+      setParticipants((prev) => (prev.some((p) => p.id === data.id) ? prev : [...prev, data]));
     } catch {
       setError(CONNECTION_ERROR);
     } finally {
@@ -764,25 +716,12 @@ export default function Home() {
       ? "1 minute left"
       : "";
 
-  const nameIsParticipant = participants.some(
-    (p) => p.display_name.trim().toLowerCase() === name.trim().toLowerCase()
-  );
-  const readOnlyJoin =
-    !!session &&
-    (session.phase === "reveal" || session.phase === "closed") &&
-    !nameIsParticipant;
-
-  const joinCopy = !session
-    ? ""
-    : session.phase === "closed"
-    ? "This week's session has ended. Enter your name to see what was shared."
-    : session.phase === "reveal"
-    ? "This week's updates are already revealed. Enter your name to read them."
-    : session.phase === "writing"
-    ? "Writing is under way. Join now to add your update before time's up."
-    : participants.length === 0
-    ? "This week's session is open. Be the first to join."
-    : "This week's session is open. Join in.";
+  const joinCopy =
+    session?.phase === "writing"
+      ? "Writing is under way. Join now to add your update before time's up."
+      : participants.length === 0
+      ? "This week's session is open. Be the first to join."
+      : "This week's session is open. Join in.";
 
   const primaryButton =
     "min-h-11 rounded-lg bg-ember-fill px-4 py-2 font-semibold text-white transition disabled:opacity-50";
@@ -816,21 +755,16 @@ export default function Home() {
         {!showingResults && session?.phase !== "writing" && <RockCard />}
       </div>
 
-      {me && !isViewer && (
-        <p className="-mt-3 text-sm text-grafite dark:text-marmol/70">
-          You&apos;re {me.display_name}.{" "}
-          <button
-            type="button"
-            onClick={() => {
-              setChosenMe(null);
-              setOptedOut(true);
-            }}
-            className="inline-flex min-h-8 items-center font-semibold text-ember-ink underline underline-offset-2"
-          >
-            Not you?
-          </button>
-        </p>
-      )}
+      <p className="-mt-3 text-sm text-grafite dark:text-marmol/70">
+        {me && !isViewer ? `You're ${me.display_name}.` : `Signed in as ${user.email}.`}{" "}
+        <button
+          type="button"
+          onClick={signOut}
+          className="inline-flex min-h-8 items-center font-semibold text-ember-ink underline underline-offset-2"
+        >
+          Sign out
+        </button>
+      </p>
 
       {error && (
         <p role="alert" className="text-sm font-semibold text-ember-ink">
@@ -839,91 +773,35 @@ export default function Home() {
       )}
 
       {!session && (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void handleCreateSession();
-          }}
-          className="flex flex-col gap-3"
-        >
+        <div className="flex flex-col gap-3">
           <p className="text-sm text-grafite dark:text-marmol/80">
             No session yet this week. Starting one makes you the facilitator: you
             start the timer and control the reveal.
           </p>
-          <NameInput name={name} setName={updateName} disabled={busy} />
           <button
-            type="submit"
-            disabled={busy || !name.trim()}
+            type="button"
+            onClick={() => void handleCreateSession()}
+            disabled={busy}
             className={primaryButton}
           >
             Create this week&apos;s session
           </button>
-        </form>
+        </div>
       )}
 
       {session && !me && (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void handleJoin();
-          }}
-          className="flex flex-col gap-3"
-        >
+        <div className="flex flex-col gap-4">
+          <PresenceList participants={participants} session={session} />
           <p className="text-sm text-grafite dark:text-marmol/80">{joinCopy}</p>
-          {participants.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {participants.map((p) => (
-                <button
-                  type="button"
-                  key={p.id}
-                  onClick={() => updateName(p.display_name)}
-                  className="min-h-9 rounded-full border border-grafite/40 bg-white px-3 py-1 text-sm text-ardesia transition hover:bg-stone dark:border-white/30 dark:bg-white/10 dark:text-marmol dark:hover:bg-white/15"
-                >
-                  {p.display_name}
-                </button>
-              ))}
-            </div>
-          )}
-          <NameInput name={name} setName={updateName} disabled={busy} />
-          {nameSuggestion && (
-            <div
-              role="group"
-              aria-label="Did you mean someone already here?"
-              className="flex flex-col gap-2 rounded-lg border border-grafite/70 p-3 dark:border-white/40"
-            >
-              <p className="text-sm text-ardesia dark:text-marmol">
-                Did you mean <strong>{nameSuggestion.display_name}</strong>? That name
-                is already in this session.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setName(nameSuggestion.display_name);
-                    void handleJoin({ name: nameSuggestion.display_name });
-                  }}
-                  className="min-h-11 rounded-lg bg-ember-fill px-3 text-sm font-semibold text-white"
-                >
-                  Yes, I&apos;m {nameSuggestion.display_name}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleJoin({ name: name.trim(), forceNew: true })}
-                  className="min-h-11 rounded-lg border border-grafite/50 px-3 text-sm font-semibold text-ardesia dark:border-white/40 dark:text-marmol"
-                >
-                  No, I&apos;m {name.trim()}
-                </button>
-              </div>
-            </div>
-          )}
           <button
-            type="submit"
-            disabled={busy || !name.trim()}
+            type="button"
+            onClick={() => void handleJoin()}
+            disabled={busy}
             className={primaryButton}
           >
-            {readOnlyJoin ? "View updates" : "Join"}
+            Join as {myDisplayName}
           </button>
-        </form>
+        </div>
       )}
 
       {session && me && session.phase === "lobby" && (
@@ -1263,25 +1141,3 @@ function PresenceList({
   );
 }
 
-function NameInput({
-  name,
-  setName,
-  disabled,
-}: {
-  name: string;
-  setName: (value: string) => void;
-  disabled: boolean;
-}) {
-  return (
-    <input
-      type="text"
-      value={name}
-      onChange={(e) => setName(e.target.value)}
-      placeholder="Your name"
-      aria-label="Your name"
-      autoComplete="name"
-      disabled={disabled}
-      className={inputClass}
-    />
-  );
-}

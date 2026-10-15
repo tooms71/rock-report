@@ -39,18 +39,39 @@ for a link the team opens, because updates include client names and hiring detai
 - [ ] Create a private **GitHub** repository and push the code. (There is none yet.)
 - [ ] In Supabase: turn on the **Google** sign-in provider and paste in the client ID and
       secret from above.
-- [ ] Run the database change that **locks the tables** so only signed-in people can read or
-      write (Claude prepares this SQL; Shannon runs it in the Supabase SQL editor).
+- [ ] In the Supabase SQL editor, run the small **sign-in column** change (the
+      "Sign-in with Google" block at the bottom of `supabase/schema.sql`). It is safe to run
+      at any time.
+- [ ] Test signing in locally (see "Testing sign-in" below).
+- [ ] **Last,** run `supabase/lock-down.sql` in the SQL editor. This locks every table so
+      only signed-in @carrara.is people can read or write. Then check that a signed-out
+      request is refused.
 - [ ] Create a **Vercel** account, import the repository, and add the settings below.
 - [ ] Open the live link in a private window and confirm a non-Carrara Google account is
       turned away.
 
-### Claude builds in the app
-- [ ] A "Sign in with Google" screen, and a second check that the email ends in
-      @carrara.is. Google only. We do not build our own email and password login, because
-      that means storing and resetting passwords.
-- [ ] People join with their Google name instead of typing one.
-- [ ] Database rules tying every read and write to the signed-in person.
+### Claude builds in the app (done, awaiting testing)
+- [x] A "Sign in with Google" screen in front of every page, and a second check that the
+      email ends in @carrara.is. Google only. We do not build our own email and password
+      login, because that means storing and resetting passwords.
+- [x] People join with their Google first name (a last initial is added if two people share
+      one) instead of typing a name. Opening the page does not add you to the session; you
+      click Join, so people who only look do not block the "everyone has submitted" reveal.
+- [x] `supabase/lock-down.sql`: database rules for signed-in Carrara people only.
+
+## Testing sign-in
+
+1. Supabase: Google provider on, client ID and secret pasted in, Site URL
+   `http://localhost:3000`, redirect URL `http://localhost:3000/**`.
+2. Run the sign-in column SQL (above).
+3. Open http://localhost:3000, click **Sign in with Google**, choose the @carrara.is account.
+4. Expect: back at the app, "Signed in as you@carrara.is. Sign out", and a session you can
+   create or join.
+5. Try an outside account (for example a personal Gmail): Google should refuse it. If it
+   gets through, the app still shows "isn't a Carrara account", but then check that the
+   Google audience is **Internal**.
+6. Only then run `supabase/lock-down.sql`, reload, and confirm everything still works while
+   signed in.
 
 ## Settings that live in Vercel (never in the code)
 

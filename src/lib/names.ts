@@ -1,20 +1,21 @@
-// True when two names are *almost* the same (one typo apart) but not identical,
-// e.g. "Shanon" vs "Shannon". Used to ask "did you mean...?" instead of silently
-// creating a second person who would block the everyone-has-submitted reveal.
-export function isSimilarName(a: string, b: string): boolean {
-  const x = a.trim().toLowerCase();
-  const y = b.trim().toLowerCase();
-  if (x === y || Math.min(x.length, y.length) < 4) return false;
-  if (Math.abs(x.length - y.length) > 1) return false;
+type NameSource = { email?: string | null; user_metadata?: Record<string, unknown> };
 
-  let i = 0;
-  while (i < x.length && i < y.length && x[i] === y[i]) i++;
+// The name shown on the agenda and cards: the first name from the Google profile. If
+// someone in the session already has that first name, add a last initial ("Shannon T.");
+// failing that, fall back to the part of the email before the @.
+export function displayNameFor(user: NameSource, takenNames: string[]): string {
+  const meta = user.user_metadata ?? {};
+  const emailName = (user.email ?? "").split("@")[0];
+  const full = String(meta.full_name ?? meta.name ?? "").trim() || emailName;
+  const parts = full.split(/\s+/).filter(Boolean);
+  const first = parts[0] ?? "Someone";
 
-  if (x.length === y.length) {
-    // one substitution, or one adjacent transposition
-    if (x.slice(i + 1) === y.slice(i + 1)) return true;
-    return x[i] === y[i + 1] && x[i + 1] === y[i] && x.slice(i + 2) === y.slice(i + 2);
-  }
-  // one insertion/deletion
-  return x.length > y.length ? x.slice(i + 1) === y.slice(i) : y.slice(i + 1) === x.slice(i);
+  const taken = new Set(takenNames.map((n) => n.trim().toLowerCase()));
+  if (!taken.has(first.toLowerCase())) return first;
+
+  const lastInitial = parts.length > 1 ? parts[parts.length - 1][0].toUpperCase() : "";
+  const withInitial = lastInitial ? `${first} ${lastInitial}.` : first;
+  if (!taken.has(withInitial.toLowerCase())) return withInitial;
+
+  return emailName && !taken.has(emailName.toLowerCase()) ? emailName : `${withInitial} 2`;
 }

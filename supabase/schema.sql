@@ -53,6 +53,13 @@ create table if not exists updates (
 alter table if exists updates add column if not exists anything_else text;
 alter table if exists updates add column if not exists top_priorities text;
 
+-- Sign-in with Google: each participant is linked to the signed-in person, so people
+-- no longer type a name. One row per person per session. Safe to re-run.
+alter table if exists participants
+  add column if not exists user_id uuid references auth.users(id) on delete set null;
+create unique index if not exists participants_session_user_key
+  on participants (session_id, user_id) where user_id is not null;
+
 -- reactions: emoji reactions on updates or individual fields, including the 🚩 red flag
 create table if not exists reactions (
   id uuid primary key default gen_random_uuid(),
