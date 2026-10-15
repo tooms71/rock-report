@@ -36,7 +36,7 @@ for a link the team opens, because updates include client names and hiring detai
       chat, email or git. If an admin created them, they hand them over the same way.
 
 ### Shannon (with Claude)
-- [ ] Create a private **GitHub** repository and push the code. (There is none yet.)
+- [x] Create a private **GitHub** repository and push the code (`tooms71/rock-report`).
 - [x] In Supabase: turn on the **Google** sign-in provider and paste in the client ID and
       secret from above.
 - [x] In the Supabase SQL editor, run the small **sign-in column** change (the
@@ -47,9 +47,10 @@ for a link the team opens, because updates include client names and hiring detai
       nothing and writes are refused). This locks every table so
       only signed-in @carrara.is people can read or write. Then check that a signed-out
       request is refused.
-- [ ] Create a **Vercel** account, import the repository, and add the settings below.
-- [ ] Open the live link in a private window and confirm a non-Carrara Google account is
-      turned away.
+- [x] Create a **Vercel** account, import the repository, and add the settings below
+      (project `rock-report` in the Carrara team).
+- [x] Open the live link in a private window and confirm a non-Carrara Google account is
+      turned away. Passed.
 
 ### Claude builds in the app (done, awaiting testing)
 - [x] A "Sign in with Google" screen in front of every page, and a second check that the
@@ -85,12 +86,27 @@ document, or git.
 ## Still to do
 
 - [x] Turn off the Supabase **Email** provider (only Google is on).
-- [ ] Try a personal Gmail account to confirm Google refuses it.
-- [ ] Create a private GitHub repository and push the code.
-- [ ] Create the Vercel project, add the two settings, and deploy.
-- [ ] Add the live address to Supabase (Site URL and Redirect URLs) and to the Google OAuth
-      client (authorized redirect stays the Supabase callback), then test signing in there.
-- [ ] Share the link only after the live sign-in test passes.
+- [x] Try a personal Gmail account to confirm Google refuses it.
+- [x] Create a private GitHub repository and push the code.
+- [x] Create the Vercel project, add the two settings, and deploy.
+- [x] Add the live address to Supabase (Site URL and Redirect URLs), then test signing in
+      there. Passed. (Google needed no change: its redirect stays the Supabase callback.)
+- [ ] Two-window live-update check on the live site (start writing in one, the other flips).
+- [ ] Share the link with the team.
+
+## Live site
+
+https://rock-report.vercel.app/ (Vercel, Carrara team). Every push to `main` on GitHub
+redeploys it automatically. Local development still works at http://localhost:3000.
+
+## Keeping it healthy
+
+- Supabase's free tier **pauses after about a week without use**. If the app suddenly says
+  it can't reach the database, open the Supabase dashboard and click Restore.
+- The GitHub token used to push expires on the date chosen when it was made; create a new
+  one the same way (Contents: read and write, only this repository).
+- Vercel's free "Hobby" plan is meant for personal projects. If the team uses this
+  every week, check whether Carrara has a paid Vercel team plan.
 
 ## Order
 
