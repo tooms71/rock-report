@@ -6,7 +6,7 @@ import {
   type ReactionRow,
 } from "@/components/RevealGrid";
 import type { UpdateFields } from "@/components/WritingForm";
-import { isShown } from "@/lib/updates";
+import { isMeaningful, isShown } from "@/lib/updates";
 
 export type AgendaParticipant = { id: string; display_name: string };
 
@@ -72,8 +72,8 @@ export function buildAgenda(
   const offersClosedTotal = shown.reduce((sum, u) => sum + (u.offers_closed ?? 0), 0);
 
   const rolesOpened: AgendaInfoItem[] = shown.flatMap((u) =>
-    u.roles_opened
-      ? [{ id: u.id, name: nameFor(u.participant_id), text: u.roles_opened }]
+    isMeaningful(u.roles_opened)
+      ? [{ id: u.id, name: nameFor(u.participant_id), text: u.roles_opened ?? "" }]
       : []
   );
 
@@ -97,7 +97,7 @@ export function buildAgenda(
       const itemKey = `${u.id}:${key}`;
       const voters = flagVoters.get(itemKey);
       // Anything written under "Blocked or struggling" joins the agenda on its own.
-      const blocked = key === "need_brain_on" && !!u.need_brain_on?.trim();
+      const blocked = key === "need_brain_on" && isMeaningful(u.need_brain_on);
       if (!voters && !blocked) return [];
       // Writing it counts as the author flagging it, so it never starts at zero.
       const flagCount = (voters?.size ?? 0) + (blocked && !voters?.has(u.participant_id) ? 1 : 0);

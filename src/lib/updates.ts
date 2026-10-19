@@ -29,3 +29,20 @@ export function isShown(
 ): boolean {
   return !!update && (!!update.submitted_at || hasContent(update));
 }
+
+// People often type "none" or "n/a" instead of leaving a box empty. Those mean "nothing
+// here", so they must not become agenda items or cards, especially under "Blocked or
+// struggling", where whatever is written goes straight onto the agenda.
+const MEANS_NOTHING = new Set([
+  "no", "nope", "none", "nothing", "nada", "nil", "na", "n a",
+  "not applicable", "none this week", "nothing this week", "nothing to report",
+  "no update", "no updates", "no blockers", "no blocker", "not blocked",
+  "not at the moment", "all good", "all good here",
+]);
+
+export function isMeaningful(value: string | null | undefined): boolean {
+  if (!value) return false;
+  // Ignore case and punctuation: "N/A.", "None!" and "-" all count as nothing.
+  const cleaned = value.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+  return cleaned !== "" && !MEANS_NOTHING.has(cleaned);
+}

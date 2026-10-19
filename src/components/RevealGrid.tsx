@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import type { UpdateFields } from "@/components/WritingForm";
 import { AlertIcon, FlagIcon } from "@/components/Icons";
 import { ClampedText } from "@/components/ClampedText";
-import { isShown } from "@/lib/updates";
+import { isMeaningful, isShown } from "@/lib/updates";
 
 type ParticipantRow = {
   id: string;
@@ -186,7 +186,7 @@ function UpdateCard({
         </div>
       )}
 
-      {!hasOffers && !FLAGGABLE_FIELDS.some(({ key }) => update[key]) && (
+      {!hasOffers && !FLAGGABLE_FIELDS.some(({ key }) => isMeaningful(update[key] as string | null)) && (
         <p className="mt-2 text-base text-grafite dark:text-marmol/80">
           Nothing else to discuss this week.
         </p>
@@ -354,7 +354,7 @@ function Field({
   readOnly: boolean;
   onToggleFlag: () => void;
 }) {
-  if (!value) return null;
+  if (!isMeaningful(value)) return null;
 
   return (
     <div>

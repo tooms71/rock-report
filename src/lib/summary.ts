@@ -1,5 +1,6 @@
 import type { ReactionRow } from "@/components/RevealGrid";
 import { buildAgenda, type AgendaParticipant, type AgendaUpdate } from "@/lib/agenda";
+import { isMeaningful } from "@/lib/updates";
 
 const oneLine = (text: string) =>
   text
@@ -57,7 +58,7 @@ export function buildMeetingNotes({
   if (blockedItems.length > 0) sections.push(numbered("Blocked or struggling", blockedItems));
 
   const priorities = shown
-    .filter((u) => u.top_priorities?.trim())
+    .filter((u) => isMeaningful(u.top_priorities))
     .map((u) => `- ${nameFor(u.participant_id)}: ${oneLine(u.top_priorities ?? "")}`);
   if (priorities.length > 0) {
     sections.push(["Top priorities of the week", ...priorities].join("\n"));

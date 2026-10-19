@@ -115,6 +115,10 @@ export function WritingForm({
         }
       }}
     >
+      <p className="text-sm text-grafite dark:text-marmol/80">
+        Leave anything that doesn&apos;t apply to you blank.
+      </p>
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <NumberField
           label="Offers closed"
@@ -150,7 +154,7 @@ export function WritingForm({
 
       <TextField
         label="Blocked or struggling?"
-        hint="Anything you're stuck on or finding hard that you'd like to bring to the group. It goes straight onto the agenda."
+        hint="Anything you're stuck on or finding hard that you'd like to bring to the group. Leave this blank if you're not blocked: whatever you write goes straight onto the agenda."
         value={fields.need_brain_on}
         onChange={(v) => updateField("need_brain_on", v)}
         rows={3}
