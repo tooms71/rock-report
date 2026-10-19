@@ -41,19 +41,20 @@ export function buildMeetingNotes({
       ["New roles opened", ...rolesOpened.map((i) => `- ${i.name}: ${oneLine(i.text)}`)].join("\n")
     );
   }
-  if (flagged.length > 0) {
-    sections.push(
-      [
-        "Flagged for discussion",
-        ...flagged.map(
-          (f, index) =>
-            `${index + 1}. ${f.discussed ? "[discussed]" : "[not discussed]"} ${f.name} · ${f.label}${
-              f.flagCount > 1 ? ` (${f.flagCount} flags)` : ""
-            }: ${oneLine(f.value ?? "")}`
-        ),
-      ].join("\n")
-    );
-  }
+  const numbered = (heading: string, items: typeof flagged) =>
+    [
+      heading,
+      ...items.map(
+        (f, index) =>
+          `${index + 1}. ${f.discussed ? "[discussed]" : "[not discussed]"} ${f.name} · ${f.label}${
+            f.flagCount > 1 ? ` (${f.flagCount} flags)` : ""
+          }: ${oneLine(f.value ?? "")}`
+      ),
+    ].join("\n");
+  const flaggedItems = flagged.filter((f) => f.fieldKey !== "need_brain_on");
+  const blockedItems = flagged.filter((f) => f.fieldKey === "need_brain_on");
+  if (flaggedItems.length > 0) sections.push(numbered("Flagged for discussion", flaggedItems));
+  if (blockedItems.length > 0) sections.push(numbered("Blocked or struggling", blockedItems));
 
   const priorities = shown
     .filter((u) => u.top_priorities?.trim())

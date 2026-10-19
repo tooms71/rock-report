@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { getMondayOfWeek, formatClock, formatWeekOf, parseWeekOf } from "@/lib/date";
@@ -30,6 +30,12 @@ const WRITING_DURATION_MS = 3 * 60 * 1000;
 // Someone who opens a session that's already revealed or closed just reads it;
 // they aren't added as a participant (that would create an empty card for them).
 const VIEWER_ID = "viewer";
+
+// Live updates arrive over a websocket, but one missed message must never leave a screen
+// out of date, so every screen also re-reads the session every few seconds.
+const POLL_MS = 3000;
+const PHASE_ORDER = ["lobby", "writing", "reveal", "agenda", "closed"];
+const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 const CONNECTION_ERROR =
   "Couldn't reach the database. Check your connection (or whether Supabase is paused), then try again.";
@@ -70,7 +76,7 @@ export default function Home() {
   // Opening a session that's already revealed or closed just reads it; the person isn't
   // added as a participant (that would create an empty card for them).
   const viewerMe: ParticipantRow | null =
-    !myParticipant && session && (session.phase === "reveal" || session.phase === "closed")
+    !myParticipant && session && (session.phase === "reveal" || session.phase === "agenda" || session.phase === "closed")
       ? { id: VIEWER_ID, session_id: session.id, user_id: user.id, display_name: myDisplayName, joined_at: "" }
       : null;
   const me = myParticipant ?? viewerMe;
@@ -83,6 +89,12 @@ export default function Home() {
   // Highest remaining time seen, so the progress bar stays accurate after "+1 min".
   const [timerCeiling, setTimerCeiling] = useState(WRITING_DURATION_MS / 1000);
   const [reactions, setReactions] = useState<ReactionRow[]>([]);
+  // Bumped whenever I change something, so a refresh that was already in flight can't
+  // overwrite my change with older data.
+  const mutationVersion = useRef(0);
+  const bump = () => {
+    mutationVersion.current += 1;
+  };
 
   // Load this week's session (if any) and its participants.
   useEffect(() => {
@@ -332,12 +344,84 @@ export default function Home() {
     };
   }, [session?.phase, session?.id, me, myUpdate]);
 
+  // Keep this screen in step with the database even if a live message is missed.
+  const sessionClosed = session?.phase === "closed";
+  useEffect(() => {
+    if (!session?.id || sessionClosed) return;
+    const sessionId = session.id;
+    let active = true;
+
+    async function refresh() {
+      if (document.hidden) return;
+      const version = mutationVersion.current;
+      const [s, p, u, r] = await Promise.all([
+        supabase.from("sessions").select("*").eq("id", sessionId).maybeSingle(),
+        supabase
+          .from("participants")
+          .select("*")
+          .eq("session_id", sessionId)
+          .order("joined_at", { ascending: true }),
+        supabase.from("updates").select("*").eq("session_id", sessionId),
+        supabase.from("reactions").select("*").eq("session_id", sessionId),
+      ]);
+      // If I changed something while this was in flight, my change is newer than this data.
+      if (!active || version !== mutationVersion.current) return;
+
+      const fresh = s.data as SessionRow | null;
+      if (fresh) {
+        // A session only moves forward, so an older answer never wins.
+        setSession((prev) =>
+          prev && PHASE_ORDER.indexOf(fresh.phase) < PHASE_ORDER.indexOf(prev.phase)
+            ? prev
+            : sameJson(prev, fresh)
+            ? prev
+            : fresh
+        );
+      }
+      if (p.data) {
+        // People only ever join, so keep anyone already known and add anyone new.
+        const found = p.data as ParticipantRow[];
+        setParticipants((prev) => {
+          const known = new Set(prev.map((x) => x.id));
+          const added = found.filter((x) => !known.has(x.id));
+          return added.length === 0 ? prev : [...prev, ...added];
+        });
+      }
+      if (u.data) setAllUpdates((prev) => (sameJson(prev, u.data) ? prev : (u.data as UpdateRow[])));
+      if (r.data) setReactions((prev) => (sameJson(prev, r.data) ? prev : (r.data as ReactionRow[])));
+    }
+
+    const interval = setInterval(refresh, POLL_MS);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      active = false;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [session?.id, sessionClosed]);
+
   async function attemptReveal(sessionId: string) {
     await supabase
       .from("sessions")
       .update({ phase: "reveal" })
       .eq("id", sessionId)
       .eq("phase", "writing");
+  }
+
+  // Ending writing early is a big step, so never trust this screen's own idea of who is
+  // here. Ask the database: reveal only if every person in the session has submitted.
+  async function revealIfEveryoneSubmitted(sessionId: string) {
+    const [people, drafts] = await Promise.all([
+      supabase.from("participants").select("id").eq("session_id", sessionId),
+      supabase.from("updates").select("participant_id, submitted_at").eq("session_id", sessionId),
+    ]);
+    if (!people.data || !drafts.data || people.data.length === 0) return;
+    const submitted = new Set(
+      drafts.data.filter((d) => d.submitted_at).map((d) => d.participant_id)
+    );
+    if (people.data.every((person) => submitted.has(person.id))) {
+      await attemptReveal(sessionId);
+    }
   }
 
   // Countdown, computed from the shared writing_ends_at — never a local stopwatch.
@@ -374,13 +458,13 @@ export default function Home() {
     if (participants.length === 0) return;
     const submittedCount = allUpdates.filter((u) => u.submitted_at).length;
     if (submittedCount >= participants.length) {
-      attemptReveal(session.id);
+      revealIfEveryoneSubmitted(session.id);
     }
   }, [session?.phase, session?.id, allUpdates, participants.length]);
 
   // Arrive at the top of the reveal, not wherever the writing form was scrolled to.
   useEffect(() => {
-    if (session?.phase === "reveal") window.scrollTo({ top: 0 });
+    if (session?.phase === "reveal" || session?.phase === "agenda") window.scrollTo({ top: 0 });
   }, [session?.phase]);
 
   async function handleCreateSession() {
@@ -425,6 +509,7 @@ export default function Home() {
   }
 
   async function handleJoin() {
+    bump();
     if (!session || myParticipant) return;
     setBusy(true);
     setError(null);
@@ -444,6 +529,7 @@ export default function Home() {
   }
 
   async function handleStartWriting() {
+    bump();
     if (!session) return;
     setBusy(true);
     setError(null);
@@ -466,6 +552,7 @@ export default function Home() {
   }
 
   async function handleRevealNow() {
+    bump();
     if (!session) return;
     setBusy(true);
     setError(null);
@@ -484,6 +571,7 @@ export default function Home() {
   // Facilitator gives the whole room one more minute (everyone's clock is derived
   // from writing_ends_at, so this reaches every screen at once).
   async function handleAddMinute() {
+    bump();
     if (!session?.writing_ends_at || (secondsLeft !== null && secondsLeft <= 0)) return;
     setError(null);
     const extended = new Date(
@@ -503,7 +591,31 @@ export default function Home() {
     setSession(data);
   }
 
+  // Facilitator moves the room from reading and flagging to the meeting agenda.
+  async function handleStartAgenda() {
+    bump();
+    if (!session) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const { data, error: agendaError } = await supabase
+        .from("sessions")
+        .update({ phase: "agenda" })
+        .eq("id", session.id)
+        .eq("phase", "reveal")
+        .select()
+        .single();
+      if (agendaError) throw agendaError;
+      setSession(data);
+    } catch {
+      setError(CONNECTION_ERROR);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleCloseSession() {
+    bump();
     if (!session) return;
     setBusy(true);
     setError(null);
@@ -512,7 +624,7 @@ export default function Home() {
         .from("sessions")
         .update({ phase: "closed" })
         .eq("id", session.id)
-        .eq("phase", "reveal")
+        .in("phase", ["reveal", "agenda"])
         .select()
         .single();
       if (closeError) throw closeError;
@@ -538,6 +650,7 @@ export default function Home() {
 
   // Submit writes the final field values and the submitted flag in one request.
   async function handleSubmitUpdate(fields: UpdateFields) {
+    bump();
     if (!myUpdate) return;
     setBusy(true);
     setError(null);
@@ -556,6 +669,7 @@ export default function Home() {
   }
 
   async function handleUnsubmit() {
+    bump();
     if (!myUpdate) return;
     const { data } = await supabase
       .from("updates")
@@ -569,6 +683,7 @@ export default function Home() {
   // Facilitator marks a flagged topic as discussed (a ✅ reaction on the same field),
   // which syncs live to everyone like any other reaction.
   async function handleToggleDiscussed(updateId: string, fieldKey: string) {
+    bump();
     if (!me || !session || me.id !== session.facilitator_participant_id) return;
 
     const existing = reactions.filter(
@@ -610,6 +725,7 @@ export default function Home() {
   }
 
   async function handleToggleFlag(updateId: string, fieldKey: string) {
+    bump();
     if (!me || !session || me.id === VIEWER_ID) return;
 
     const existing = reactions.find(
@@ -691,7 +807,11 @@ export default function Home() {
     participants.find((p) => p.id === session?.facilitator_participant_id)?.display_name ??
     "the facilitator";
   const showingResults =
-    !!me && (session?.phase === "reveal" || session?.phase === "closed");
+    !!me &&
+    (session?.phase === "reveal" || session?.phase === "agenda" || session?.phase === "closed");
+  const inReveal = session?.phase === "reveal";
+  const inAgenda = session?.phase === "agenda";
+  const isClosed = session?.phase === "closed";
   // Counts come from the agenda itself, so items added by "Blocked or struggling" count too.
   const agendaItems = buildAgenda(participants, allUpdates, reactions).flagged;
   const flaggedTopicCount = agendaItems.length;
@@ -979,41 +1099,41 @@ export default function Home() {
         <div className="flex flex-col gap-8">
           <header className="arrive">
             <h2 className="font-heading text-3xl font-bold text-ardesia dark:text-marmol">
-              {session.phase === "closed"
+              {isClosed
                 ? "That’s a wrap"
+                : inAgenda
+                ? "Today’s agenda"
                 : everyoneSubmitted
                 ? "Everyone’s in"
                 : "Updates are in"}
             </h2>
             <p className="mt-1 text-base text-grafite dark:text-marmol/80">
-              {session.phase === "closed"
+              {isClosed
                 ? `${updatesInCount} ${updatesInCount === 1 ? "update" : "updates"} shared${
                     discussedCount === 0
                       ? ""
                       : leftToDiscuss === 0
-                      ? ` · all ${flaggedTopicCount} flagged ${
+                      ? ` · all ${flaggedTopicCount} ${
                           flaggedTopicCount === 1 ? "topic" : "topics"
                         } discussed`
-                      : ` · ${discussedCount} flagged ${
+                      : ` · ${discussedCount} ${
                           discussedCount === 1 ? "topic" : "topics"
                         } discussed`
                   }`
+                : inAgenda
+                ? `${flaggedTopicCount} ${
+                    flaggedTopicCount === 1 ? "topic" : "topics"
+                  } to discuss · Facilitator: ${facilitatorName}`
                 : `${updatesInCount} ${updatesInCount === 1 ? "update" : "updates"} in${
                     spareSeconds >= 5 ? ` · ${formatClock(spareSeconds)} to spare` : ""
-                  }${
-                    flaggedTopicCount > 0
-                      ? ` · ${flaggedTopicCount} ${
-                          flaggedTopicCount === 1 ? "topic" : "topics"
-                        } flagged for discussion`
-                      : ""
                   } · Facilitator: ${facilitatorName}`}
             </p>
-            {session.phase === "closed" && (
+            {isClosed && (
               <p className="mt-1 text-sm text-grafite dark:text-marmol/80">
                 Read-only now. See you next week. Next up: {nextRockName}.
               </p>
             )}
-            {session.phase === "closed" && (
+            {isClosed && (
               <div className="mt-4">
                 <CopyButton
                   primary
@@ -1038,16 +1158,17 @@ export default function Home() {
             )}
           </header>
 
-          <AgendaPanel
-            participants={participants}
-            updates={allUpdates}
-            reactions={reactions}
-            canMarkDiscussed={isFacilitator && session.phase === "reveal"}
-            canFlag={!isViewer && session.phase === "reveal"}
-            closed={session.phase === "closed"}
-            onToggleDiscussed={handleToggleDiscussed}
-            animate={session.phase === "reveal"}
-          />
+          {!inReveal && (
+            <AgendaPanel
+              participants={participants}
+              updates={allUpdates}
+              reactions={reactions}
+              canMarkDiscussed={isFacilitator && inAgenda}
+              closed={isClosed}
+              onToggleDiscussed={handleToggleDiscussed}
+              animate={inAgenda}
+            />
+          )}
 
           <section aria-labelledby="updates-heading" className="flex flex-col gap-4">
             <h2
@@ -1056,9 +1177,14 @@ export default function Home() {
             >
               Everyone&apos;s updates
             </h2>
-            {session.phase === "reveal" && !isViewer && (
+            {inReveal && !isViewer && (
               <p className="-mt-2 text-base text-grafite dark:text-marmol/80">
-                Click or tap Flag on anything the team should discuss. The more flags, the higher it sits on the agenda.
+                Take a moment to read, then click or tap Flag on anything the team should
+                discuss. The more flags, the higher it sits on the agenda. Anything under
+                Blocked or struggling goes on the agenda by itself.{" "}
+                {isFacilitator
+                  ? "When everyone has had time, build the agenda."
+                  : `${facilitatorName} builds the agenda when everyone has had time.`}
               </p>
             )}
             <RevealGrid
@@ -1067,24 +1193,45 @@ export default function Home() {
               reactions={reactions}
               myParticipantId={me.id}
               onToggleFlag={handleToggleFlag}
-              readOnly={session.phase === "closed" || isViewer}
-              animate={session.phase === "reveal"}
+              readOnly={!inReveal || isViewer}
+              animate={inReveal}
             />
           </section>
 
-          {session.phase === "closed" ? <RockCard /> : <RockCard compact />}
+          {isClosed ? <RockCard /> : <RockCard compact />}
 
-          <OpenRoles />
-
+          {!inReveal && <OpenRoles />}
         </div>
       )}
 
-      {showingResults && session?.phase === "reveal" && isFacilitator && (
+      {showingResults && inReveal && isFacilitator && (
         <div className="sticky bottom-0 z-10 -mx-6 -mb-10 border-t border-grafite/20 bg-background px-6 py-3 dark:border-white/15">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
             <p className="text-base font-semibold text-ardesia dark:text-marmol">
               {flaggedTopicCount === 0
-                ? "No topics flagged yet"
+                ? "Nothing flagged yet"
+                : `${flaggedTopicCount} ${
+                    flaggedTopicCount === 1 ? "topic" : "topics"
+                  } on the agenda so far`}
+            </p>
+            <ConfirmButton
+              label="Build the agenda"
+              prompt="Move everyone on to the agenda? Flagging locks once it starts."
+              confirmLabel="Yes, build it"
+              onConfirm={handleStartAgenda}
+              disabled={busy}
+              className="min-h-11 rounded-lg bg-ember-fill px-4 py-2 font-semibold text-white transition disabled:opacity-50"
+            />
+          </div>
+        </div>
+      )}
+
+      {showingResults && inAgenda && isFacilitator && (
+        <div className="sticky bottom-0 z-10 -mx-6 -mb-10 border-t border-grafite/20 bg-background px-6 py-3 dark:border-white/15">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
+            <p className="text-base font-semibold text-ardesia dark:text-marmol">
+              {flaggedTopicCount === 0
+                ? "No topics to discuss"
                 : leftToDiscuss === 0
                 ? "All topics discussed"
                 : `${leftToDiscuss} left to discuss`}
@@ -1093,7 +1240,7 @@ export default function Home() {
               label="Close session"
               prompt={`${
                 leftToDiscuss > 0
-                  ? `${leftToDiscuss} flagged ${
+                  ? `${leftToDiscuss} ${
                       leftToDiscuss === 1 ? "topic hasn't" : "topics haven't"
                     } been discussed. `
                   : ""

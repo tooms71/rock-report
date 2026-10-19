@@ -21,6 +21,7 @@ const PHASE_LABELS: Record<string, string> = {
   lobby: "Not started",
   writing: "In progress",
   reveal: "Revealed",
+  agenda: "In meeting",
   closed: "Closed",
 };
 
@@ -47,7 +48,7 @@ export default function ArchivePage() {
       if (!active) return;
       const result: Record<string, string> = {};
       for (const s of data ?? []) {
-        if (s.phase !== "reveal" && s.phase !== "closed") continue;
+        if (s.phase !== "reveal" && s.phase !== "agenda" && s.phase !== "closed") continue;
         result[s.id] = formatSessionSummary(
           summarizeSession(
             ((updates ?? []) as (AgendaUpdate & { session_id: string })[]).filter(

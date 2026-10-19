@@ -7,7 +7,7 @@ create extension if not exists "pgcrypto";
 create table if not exists sessions (
   id uuid primary key default gen_random_uuid(),
   week_of date not null,
-  phase text not null default 'lobby' check (phase in ('lobby', 'writing', 'reveal', 'closed')),
+  phase text not null default 'lobby' check (phase in ('lobby', 'writing', 'reveal', 'agenda', 'closed')),
   writing_ends_at timestamptz,
   facilitator_participant_id uuid,
   created_at timestamptz not null default now()
@@ -97,3 +97,19 @@ alter publication supabase_realtime add table sessions;
 alter publication supabase_realtime add table participants;
 alter publication supabase_realtime add table updates;
 alter publication supabase_realtime add table reactions;
+
+-- The meeting now has a step between reading (reveal) and closing: the agenda. Existing
+-- databases need their phase check widened. Safe to re-run: it finds the old check by what
+-- it says rather than by name.
+do $$
+declare old_check text;
+begin
+  select conname into old_check from pg_constraint
+    where conrelid = 'sessions'::regclass and contype = 'c'
+      and pg_get_constraintdef(oid) like '%phase%';
+  if old_check is not null then
+    execute format('alter table sessions drop constraint %I', old_check);
+  end if;
+  alter table sessions add constraint sessions_phase_check
+    check (phase in ('lobby', 'writing', 'reveal', 'agenda', 'closed'));
+end $$;
