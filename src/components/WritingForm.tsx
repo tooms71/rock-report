@@ -10,8 +10,8 @@ export type UpdateFields = {
   offers_closed: number | null;
   offers_closed_note: string | null;
   roles_opened: string | null;
-  top_priorities: string | null;
-  need_brain_on: string | null; // "Blocked or struggling"
+  wins: string | null;
+  need_brain_on: string | null; // the hive mind box
   anything_else: string | null;
 };
 
@@ -121,20 +121,28 @@ export function WritingForm({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <NumberField
-          label="Offers closed"
+          label="Offers accepted"
           value={fields.offers_closed}
           note={fields.offers_closed_note}
           onValueChange={(v) => updateField("offers_closed", v)}
           onNoteChange={(v) => updateField("offers_closed_note", v)}
         />
         <NumberField
-          label="Offers out"
+          label="Offers extended"
           value={fields.offers_made}
           note={fields.offers_made_note}
           onValueChange={(v) => updateField("offers_made", v)}
           onNoteChange={(v) => updateField("offers_made_note", v)}
         />
       </div>
+
+      <TextField
+        label="Wins to celebrate"
+        hint="Anything you'd like celebrated, other than offers accepted"
+        value={fields.wins}
+        onChange={(v) => updateField("wins", v)}
+        rows={2}
+      />
 
       <TextField
         label="New roles opened"
@@ -145,16 +153,8 @@ export function WritingForm({
       />
 
       <TextField
-        label="What are your top priorities of the week?"
-        hint="No more than 3, one per line"
-        value={fields.top_priorities}
-        onChange={(v) => updateField("top_priorities", v)}
-        rows={3}
-      />
-
-      <TextField
-        label="Blocked or struggling?"
-        hint="Leave blank if you're not blocked. Whatever you write goes straight onto the agenda."
+        label="What might you want the hive mind for?"
+        hint="Leave blank if nothing. Whatever you write goes on the agenda and the team can upvote it."
         value={fields.need_brain_on}
         onChange={(v) => updateField("need_brain_on", v)}
         rows={3}

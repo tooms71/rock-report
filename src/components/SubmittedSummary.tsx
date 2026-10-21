@@ -5,12 +5,12 @@ import type { UpdateFields } from "@/components/WritingForm";
 // wait has something to read and you can check your own words before the reveal.
 export function SubmittedSummary({ fields }: { fields: UpdateFields }) {
   const rows: { label: string; value: string }[] = [
-    { label: "Offers closed", value: formatOffers(fields.offers_closed, fields.offers_closed_note) },
-    { label: "Offers out", value: formatOffers(fields.offers_made, fields.offers_made_note) },
+    { label: "Offers accepted", value: formatOffers(fields.offers_closed, fields.offers_closed_note) },
+    { label: "Offers extended", value: formatOffers(fields.offers_made, fields.offers_made_note) },
+    { label: "Wins", value: fields.wins },
     { label: "New roles opened", value: fields.roles_opened },
-    { label: "Top priorities of the week", value: fields.top_priorities },
-    { label: "Blocked or struggling", value: fields.need_brain_on },
-    { label: "Cool or valuable to share", value: fields.anything_else },
+    { label: "Hive mind", value: fields.need_brain_on },
+    { label: "Anything cool", value: fields.anything_else },
   ].filter((row): row is { label: string; value: string } => !!row.value);
 
   return (

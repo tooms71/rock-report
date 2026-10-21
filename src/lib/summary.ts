@@ -1,6 +1,11 @@
 import type { ReactionRow } from "@/components/RevealGrid";
-import { buildAgenda, type AgendaParticipant, type AgendaUpdate } from "@/lib/agenda";
-import { isMeaningful } from "@/lib/updates";
+import {
+  buildAgenda,
+  type AgendaInfoItem,
+  type AgendaParticipant,
+  type AgendaUpdate,
+  type DiscussionItem,
+} from "@/lib/agenda";
 
 const oneLine = (text: string) =>
   text
@@ -9,8 +14,8 @@ const oneLine = (text: string) =>
     .filter(Boolean)
     .join("; ");
 
-// Plain-text meeting notes, ready to paste into Slack or Notion: the agenda plus
-// everyone's top priorities, so someone who missed the meeting can catch up.
+// Plain-text meeting notes, ready to paste into Slack or Notion, in the same order as the
+// agenda: wins and offers, new roles, hive mind, then anything cool.
 export function buildMeetingNotes({
   weekLabel,
   participants,
@@ -22,47 +27,44 @@ export function buildMeetingNotes({
   updates: AgendaUpdate[];
   reactions: ReactionRow[];
 }): string {
-  const { shown, nameFor, offersClosed, offersClosedTotal, rolesOpened, flagged } = buildAgenda(
-    participants,
-    updates,
-    reactions
-  );
-
+  const agenda = buildAgenda(participants, updates, reactions);
   const sections: string[] = [`Rock Report: week of ${weekLabel}`];
 
-  if (offersClosed.length > 0) {
-    sections.push(
-      [
-        offersClosed.length >= 2 ? `Offers closed (${offersClosedTotal} this week)` : "Offers closed",
-        ...offersClosed.map((i) => `- ${i.name}: ${oneLine(i.text)}`)].join("\n")
-    );
-  }
-  if (rolesOpened.length > 0) {
-    sections.push(
-      ["New roles opened", ...rolesOpened.map((i) => `- ${i.name}: ${oneLine(i.text)}`)].join("\n")
-    );
-  }
-  const numbered = (heading: string, items: typeof flagged) =>
+  const bullets = (heading: string, items: AgendaInfoItem[]) =>
+    [heading, ...items.map((i) => `- ${i.name}: ${oneLine(i.text)}`)].join("\n");
+  const numbered = (heading: string, items: DiscussionItem[]) =>
     [
       heading,
       ...items.map(
-        (f, index) =>
-          `${index + 1}. ${f.discussed ? "[discussed]" : "[not discussed]"} ${f.name} · ${f.label}${
-            f.flagCount > 1 ? ` (${f.flagCount} flags)` : ""
-          }: ${oneLine(f.value ?? "")}`
+        (item, index) =>
+          `${index + 1}. ${item.discussed ? "[discussed]" : "[not discussed]"} ${item.name}${
+            item.voteCount > 0 ? ` (${item.voteCount} ${item.voteCount === 1 ? "upvote" : "upvotes"})` : ""
+          }: ${oneLine(item.value ?? "")}`
       ),
     ].join("\n");
-  const flaggedItems = flagged.filter((f) => f.fieldKey !== "need_brain_on");
-  const blockedItems = flagged.filter((f) => f.fieldKey === "need_brain_on");
-  if (flaggedItems.length > 0) sections.push(numbered("Flagged for discussion", flaggedItems));
-  if (blockedItems.length > 0) sections.push(numbered("Blocked or struggling", blockedItems));
+  const withTotal = (heading: string, items: AgendaInfoItem[], total: number) =>
+    items.length >= 2 ? `${heading} (${total} this week)` : heading;
 
-  const priorities = shown
-    .filter((u) => isMeaningful(u.top_priorities))
-    .map((u) => `- ${nameFor(u.participant_id)}: ${oneLine(u.top_priorities ?? "")}`);
-  if (priorities.length > 0) {
-    sections.push(["Top priorities of the week", ...priorities].join("\n"));
+  if (agenda.wins.length > 0) sections.push(bullets("Wins", agenda.wins));
+  if (agenda.offersAccepted.length > 0) {
+    sections.push(
+      bullets(
+        withTotal("Offers accepted", agenda.offersAccepted, agenda.offersAcceptedTotal),
+        agenda.offersAccepted
+      )
+    );
   }
+  if (agenda.offersExtended.length > 0) {
+    sections.push(
+      bullets(
+        withTotal("Offers extended", agenda.offersExtended, agenda.offersExtendedTotal),
+        agenda.offersExtended
+      )
+    );
+  }
+  if (agenda.rolesOpened.length > 0) sections.push(bullets("New roles opened", agenda.rolesOpened));
+  if (agenda.hiveMind.length > 0) sections.push(numbered("Hive mind", agenda.hiveMind));
+  if (agenda.cool.length > 0) sections.push(numbered("Anything cool you've seen", agenda.cool));
 
   return sections.join("\n\n");
 }

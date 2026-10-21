@@ -1,11 +1,11 @@
 import {
   DISCUSSED_EMOJI,
   FLAG_EMOJI,
-  FLAGGABLE_FIELDS,
   formatOffers,
   type ReactionRow,
 } from "@/components/RevealGrid";
 import type { UpdateFields } from "@/components/WritingForm";
+import { COOL_KEY, HIVE_MIND_KEY, UPVOTE_FIELDS } from "@/lib/fields";
 import { isMeaningful, isShown } from "@/lib/updates";
 
 export type AgendaParticipant = { id: string; display_name: string };
@@ -18,7 +18,8 @@ export type AgendaUpdate = UpdateFields & {
 
 export type AgendaInfoItem = { id: string; name: string; text: string };
 
-export type FlaggedItem = {
+// A topic the room can talk through: it can be upvoted and marked discussed.
+export type DiscussionItem = {
   itemKey: string;
   updateId: string;
   fieldKey: string;
@@ -26,25 +27,21 @@ export type FlaggedItem = {
   label: string;
   value: string | null;
   discussed: boolean;
-  flagCount: number;
-  blocked: boolean;
+  voteCount: number;
 };
 
-const FLAG_FIELDS: { key: keyof UpdateFields; label: string }[] = [
-  { key: "offers_made", label: "Offers out" },
-  ...FLAGGABLE_FIELDS,
-];
-
-// The meeting's agenda, derived from the revealed updates and reactions: what closed,
-// what opened, and what the team flagged (in a fixed person-then-field order so item
-// numbers never jump while the room works through them).
+// The meeting's agenda, in the order the room works through it:
+//   1. wins, offers accepted, offers extended  (read out; nothing to vote on)
+//   2. new roles opened                         (read out)
+//   3. hive mind                                (everything people asked, most upvotes first)
+//   4. anything cool                            (only what got an upvote, most first)
+// Everyone is listed in the order they joined, so numbers match between the live view,
+// the archive and the copied notes.
 export function buildAgenda(
   participants: AgendaParticipant[],
   updates: AgendaUpdate[],
   reactions: ReactionRow[]
 ) {
-  // Follow the order people joined, not the order rows came back from the database,
-  // so item numbers match in the live view, the archive and the copied notes.
   const joinOrder = new Map(participants.map((p, index) => [p.id, index]));
   const shown = updates
     .filter((u) => isShown(u))
@@ -56,35 +53,34 @@ export function buildAgenda(
   const nameFor = (participantId: string) =>
     participants.find((p) => p.id === participantId)?.display_name ?? "Someone";
 
-  // Zero closed offers isn't agenda material.
-  const offersClosed: AgendaInfoItem[] = shown.flatMap((u) =>
-    u.offers_closed
-      ? [
-          {
-            id: u.id,
-            name: nameFor(u.participant_id),
-            text: formatOffers(u.offers_closed, u.offers_closed_note) ?? "",
-          },
-        ]
-      : []
+  const infoItems = (
+    pick: (u: AgendaUpdate) => string | null | undefined
+  ): AgendaInfoItem[] =>
+    shown.flatMap((u) => {
+      const text = pick(u);
+      return text ? [{ id: u.id, name: nameFor(u.participant_id), text }] : [];
+    });
+
+  // Zero offers isn't agenda material.
+  const offersAccepted = infoItems((u) =>
+    u.offers_closed ? formatOffers(u.offers_closed, u.offers_closed_note) : null
   );
-
-  const offersClosedTotal = shown.reduce((sum, u) => sum + (u.offers_closed ?? 0), 0);
-
-  const rolesOpened: AgendaInfoItem[] = shown.flatMap((u) =>
-    isMeaningful(u.roles_opened)
-      ? [{ id: u.id, name: nameFor(u.participant_id), text: u.roles_opened ?? "" }]
-      : []
+  const offersExtended = infoItems((u) =>
+    u.offers_made ? formatOffers(u.offers_made, u.offers_made_note) : null
   );
+  const offersAcceptedTotal = shown.reduce((sum, u) => sum + (u.offers_closed ?? 0), 0);
+  const offersExtendedTotal = shown.reduce((sum, u) => sum + (u.offers_made ?? 0), 0);
+  const wins = infoItems((u) => (isMeaningful(u.wins) ? u.wins : null));
+  const rolesOpened = infoItems((u) => (isMeaningful(u.roles_opened) ? u.roles_opened : null));
 
+  // Who upvoted each topic: several people can add to its count, but each only once.
   const keyOf = (r: ReactionRow) => `${r.target_update_id}:${r.field_key}`;
-  // Who flagged each item, so several people can add to its count.
-  const flagVoters = new Map<string, Set<string>>();
+  const voters = new Map<string, Set<string>>();
   for (const r of reactions) {
     if (r.target_type !== "field" || r.emoji !== FLAG_EMOJI || !r.field_key) continue;
     const key = keyOf(r);
-    if (!flagVoters.has(key)) flagVoters.set(key, new Set());
-    flagVoters.get(key)!.add(r.participant_id);
+    if (!voters.has(key)) voters.set(key, new Set());
+    voters.get(key)!.add(r.participant_id);
   }
   const discussedKeys = new Set(
     reactions
@@ -92,54 +88,64 @@ export function buildAgenda(
       .map(keyOf)
   );
 
-  const flagged: FlaggedItem[] = shown.flatMap((u) =>
-    FLAG_FIELDS.flatMap(({ key, label }) => {
-      const itemKey = `${u.id}:${key}`;
-      const voters = flagVoters.get(itemKey);
-      // Anything written under "Blocked or struggling" joins the agenda on its own.
-      const blocked = key === "need_brain_on" && isMeaningful(u.need_brain_on);
-      if (!voters && !blocked) return [];
-      // Writing it counts as the author flagging it, so it never starts at zero.
-      const flagCount = (voters?.size ?? 0) + (blocked && !voters?.has(u.participant_id) ? 1 : 0);
+  const topics = (fieldKey: string, label: string, onlyUpvoted: boolean): DiscussionItem[] => {
+    const items = shown.flatMap((u): DiscussionItem[] => {
+      const value = u[fieldKey as typeof HIVE_MIND_KEY | typeof COOL_KEY];
+      if (!isMeaningful(value)) return [];
+      const itemKey = `${u.id}:${fieldKey}`;
+      const voteCount = voters.get(itemKey)?.size ?? 0;
+      if (onlyUpvoted && voteCount === 0) return [];
       return [
         {
           itemKey,
           updateId: u.id,
-          fieldKey: key as string,
+          fieldKey,
           name: nameFor(u.participant_id),
           label,
-          value:
-            key === "offers_made"
-              ? formatOffers(u.offers_made, u.offers_made_note)
-              : (u[key] as string | null),
+          value,
           discussed: discussedKeys.has(itemKey),
-          flagCount,
-          blocked,
+          voteCount,
         },
       ];
-    })
-  );
+    });
+    // Most upvotes first; ties keep join order (the sort is stable).
+    return items.sort((a, b) => b.voteCount - a.voteCount);
+  };
 
-  // Most flagged first; blocked items win ties; otherwise join order (the sort is stable).
-  flagged.sort((a, b) => b.flagCount - a.flagCount || Number(b.blocked) - Number(a.blocked));
+  const [hive, cool] = UPVOTE_FIELDS;
+  const hiveMind = topics(hive.key, hive.label, false);
+  const cools = topics(cool.key, cool.label, true);
 
-  return { shown, nameFor, offersClosed, offersClosedTotal, rolesOpened, flagged };
+  return {
+    shown,
+    nameFor,
+    wins,
+    offersAccepted,
+    offersAcceptedTotal,
+    offersExtended,
+    offersExtendedTotal,
+    rolesOpened,
+    hiveMind,
+    cool: cools,
+    // Everything the room has to talk through, for counts and the close prompt.
+    discussion: [...hiveMind, ...cools],
+  };
 }
 
 // One-line counts for a session, used on the archive list and detail pages.
 export function summarizeSession(updates: AgendaUpdate[], reactions: ReactionRow[]) {
-  const { shown, flagged } = buildAgenda([], updates, reactions);
+  const { shown, discussion } = buildAgenda([], updates, reactions);
   return {
     updates: shown.length,
-    flagged: flagged.length,
-    discussed: flagged.filter((f) => f.discussed).length,
+    topics: discussion.length,
+    discussed: discussion.filter((item) => item.discussed).length,
   };
 }
 
 export function formatSessionSummary(summary: ReturnType<typeof summarizeSession>): string {
   const parts = [`${summary.updates} ${summary.updates === 1 ? "update" : "updates"}`];
-  if (summary.flagged > 0) {
-    parts.push(`${summary.flagged} flagged`, `${summary.discussed} discussed`);
+  if (summary.topics > 0) {
+    parts.push(`${summary.topics} to discuss`, `${summary.discussed} discussed`);
   }
   return parts.join(" · ");
 }

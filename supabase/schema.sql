@@ -113,3 +113,6 @@ begin
   alter table sessions add constraint sessions_phase_check
     check (phase in ('lobby', 'writing', 'reveal', 'agenda', 'closed'));
 end $$;
+
+-- Wins: anything a person wants celebrated other than offers accepted. Safe to re-run.
+alter table if exists updates add column if not exists wins text;

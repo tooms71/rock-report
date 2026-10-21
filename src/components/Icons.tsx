@@ -30,30 +30,10 @@ function Svg({
   );
 }
 
-export function FlagIcon({ className, filled = false }: IconProps) {
-  return (
-    <Svg className={className} fill={filled ? "currentColor" : "none"}>
-      <path d="M5 21V4" />
-      <path d="M5 4h12l-2.5 4.5L17 13H5" />
-    </Svg>
-  );
-}
-
 export function CheckIcon({ className }: IconProps) {
   return (
     <Svg className={className}>
       <path d="M5 12.5l4.5 4.5L19 7" pathLength={1} />
-    </Svg>
-  );
-}
-
-// Blocked or struggling: an exclamation mark in a circle.
-export function AlertIcon({ className }: IconProps) {
-  return (
-    <Svg className={className}>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 7.5v5.5" />
-      <path d="M12 16.5v.01" />
     </Svg>
   );
 }
@@ -85,6 +65,43 @@ export function RockIcon({ className }: IconProps) {
     <Svg className={className}>
       <path d="M3.5 17.5l3-8L11 5l6 2.5 3.5 5-2.5 5-5.5 2.5z" />
       <path d="M6.5 9.5L11 12l6-4.5M11 12l1.5 8" />
+    </Svg>
+  );
+}
+
+// Upvote: an up arrow, solid once you have voted.
+export function UpvoteIcon({ className, filled = false }: IconProps) {
+  return (
+    <Svg className={className} fill={filled ? "currentColor" : "none"}>
+      {filled ? (
+        <path d="M12 4.5l7 8h-4.5v7h-5v-7H5z" />
+      ) : (
+        <>
+          <path d="M12 19V6" />
+          <path d="M6.5 11.5L12 6l5.5 5.5" />
+        </>
+      )}
+    </Svg>
+  );
+}
+
+// Hive mind: a single honeycomb cell.
+export function HiveIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M12 3l7.5 4.3v9.4L12 21l-7.5-4.3V7.3z" />
+      <path d="M12 9.5v5" />
+    </Svg>
+  );
+}
+
+// Anything cool: a four-point sparkle.
+export function SparkIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" />
+      <path d="M18.5 16.5v3" />
+      <path d="M17 18h3" />
     </Svg>
   );
 }

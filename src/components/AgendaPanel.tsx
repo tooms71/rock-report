@@ -1,21 +1,26 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { ReactionRow } from "@/components/RevealGrid";
-import { AlertIcon, CheckIcon, FlagIcon, OffersIcon, RolesIcon } from "@/components/Icons";
+import {
+  CheckIcon,
+  HiveIcon,
+  OffersIcon,
+  RolesIcon,
+  SparkIcon,
+  UpvoteIcon,
+} from "@/components/Icons";
 import { ClampedText } from "@/components/ClampedText";
 import {
   buildAgenda,
   type AgendaInfoItem,
   type AgendaParticipant,
   type AgendaUpdate,
-  type FlaggedItem,
+  type DiscussionItem,
 } from "@/lib/agenda";
 
-const BLOCKED_KEY = "need_brain_on";
-
-// The meeting's agenda, in the order the team works through it: what was flagged for
-// discussion (most flags first), then anything blocked or struggling, then what closed
-// and what opened. This is the reason the reveal exists, so it leads the page, sets in
-// larger type for a shared screen, and sits on its own raised surface.
+// The meeting's agenda, in the order the room works through it: celebrate (wins and
+// offers), read out the new roles, then the two lists the team votes on: the hive mind,
+// and anything cool. It leads the page, sets in larger type for a shared screen, and sits
+// on its own raised surface.
 export function AgendaPanel({
   participants,
   updates,
@@ -33,16 +38,9 @@ export function AgendaPanel({
   onToggleDiscussed?: (updateId: string, fieldKey: string) => void;
   animate?: boolean;
 }) {
-  const { offersClosed, offersClosedTotal, rolesOpened, flagged } = buildAgenda(
-    participants,
-    updates,
-    reactions
-  );
-
-  // Blocked items are their own section; both lists keep the most-flagged-first order.
-  const flaggedItems = flagged.filter((item) => item.fieldKey !== BLOCKED_KEY);
-  const blockedItems = flagged.filter((item) => item.fieldKey === BLOCKED_KEY);
-  const hasInfo = offersClosed.length > 0 || rolesOpened.length > 0;
+  const agenda = buildAgenda(participants, updates, reactions);
+  const celebrating =
+    agenda.wins.length + agenda.offersAccepted.length + agenda.offersExtended.length > 0;
 
   return (
     <section
@@ -57,50 +55,77 @@ export function AgendaPanel({
         Agenda
       </h2>
 
-      <div className={`grid gap-10 ${hasInfo ? "md:grid-cols-[1.5fr_1fr] md:gap-14" : ""}`}>
-        <div className="flex flex-col gap-10">
-          <DiscussionSection
-            title="Flagged for discussion"
-            icon={<FlagIcon filled className="size-6" />}
-            items={flaggedItems}
-            emptyText="Nothing was flagged for discussion."
-            canMarkDiscussed={canMarkDiscussed}
-            closed={closed}
-            onToggleDiscussed={onToggleDiscussed}
-          />
-          <DiscussionSection
-            title="Blocked or struggling"
-            icon={<AlertIcon className="size-6" />}
-            items={blockedItems}
-            emptyText="Nobody is blocked or struggling."
-            canMarkDiscussed={canMarkDiscussed}
-            closed={closed}
-            onToggleDiscussed={onToggleDiscussed}
-          />
+      <div className="grid gap-10 md:grid-cols-2 md:gap-14">
+        <div>
+          <SectionHeading icon={<OffersIcon className="size-6" />}>Wins and offers</SectionHeading>
+          {celebrating ? (
+            <div className="mt-3 flex flex-col gap-5">
+              <InfoGroup title="Wins" items={agenda.wins} />
+              <InfoGroup
+                title="Offers accepted"
+                items={agenda.offersAccepted}
+                // With one person the total just repeats their number.
+                total={agenda.offersAccepted.length >= 2 ? agenda.offersAcceptedTotal : undefined}
+              />
+              <InfoGroup
+                title="Offers extended"
+                items={agenda.offersExtended}
+                total={agenda.offersExtended.length >= 2 ? agenda.offersExtendedTotal : undefined}
+              />
+            </div>
+          ) : (
+            <p className="mt-1 text-base text-grafite dark:text-marmol/80">
+              No wins or offers this week.
+            </p>
+          )}
         </div>
 
-        {hasInfo && (
-          <div className="flex flex-col gap-8">
-            <AgendaGroup
-              title="Offers closed"
-              icon={<OffersIcon className="size-5" />}
-              items={offersClosed}
-              // With one person the total just repeats their number.
-              total={offersClosed.length >= 2 ? offersClosedTotal : undefined}
-            />
-            <AgendaGroup
-              title="New roles opened"
-              icon={<RolesIcon className="size-5" />}
-              items={rolesOpened}
-            />
-          </div>
-        )}
+        <div>
+          <SectionHeading icon={<RolesIcon className="size-6" />}>New roles opened</SectionHeading>
+          {agenda.rolesOpened.length > 0 ? (
+            <InfoList items={agenda.rolesOpened} label="New roles opened" />
+          ) : (
+            <p className="mt-1 text-base text-grafite dark:text-marmol/80">
+              No new roles this week.
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-12 flex flex-col gap-12">
+        <DiscussionSection
+          title="Hive mind"
+          icon={<HiveIcon className="size-6" />}
+          items={agenda.hiveMind}
+          emptyText="Nobody has asked the hive mind for anything."
+          canMarkDiscussed={canMarkDiscussed}
+          closed={closed}
+          onToggleDiscussed={onToggleDiscussed}
+        />
+        <DiscussionSection
+          title="Anything cool you've seen"
+          icon={<SparkIcon className="size-6" />}
+          items={agenda.cool}
+          emptyText="Nothing cool has been upvoted."
+          canMarkDiscussed={canMarkDiscussed}
+          closed={closed}
+          onToggleDiscussed={onToggleDiscussed}
+        />
       </div>
     </section>
   );
 }
 
-// One numbered list of topics to work through, with how many are left.
+function SectionHeading({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+  return (
+    <h3 className="flex items-center gap-2 font-heading text-2xl font-bold text-ardesia dark:text-marmol">
+      <span className="text-ember-ink">{icon}</span>
+      {children}
+    </h3>
+  );
+}
+
+// One numbered list of topics to work through, ranked by upvotes.
 function DiscussionSection({
   title,
   icon,
@@ -112,7 +137,7 @@ function DiscussionSection({
 }: {
   title: string;
   icon: ReactNode;
-  items: FlaggedItem[];
+  items: DiscussionItem[];
   emptyText: string;
   canMarkDiscussed: boolean;
   closed: boolean;
@@ -122,10 +147,7 @@ function DiscussionSection({
 
   return (
     <div>
-      <h3 className="flex items-center gap-2 font-heading text-2xl font-bold text-ardesia dark:text-marmol">
-        <span className="text-ember-ink">{icon}</span>
-        {title}
-      </h3>
+      <SectionHeading icon={icon}>{title}</SectionHeading>
       {items.length === 0 ? (
         <p className="mt-1 text-base text-grafite dark:text-marmol/80">{emptyText}</p>
       ) : (
@@ -146,7 +168,7 @@ function DiscussionSection({
           )}
           <ol className="mt-5 flex flex-col gap-6">
             {items.map((item, index) => (
-              <DiscussionItem
+              <TopicItem
                 key={item.itemKey}
                 item={item}
                 index={index}
@@ -161,13 +183,13 @@ function DiscussionSection({
   );
 }
 
-function DiscussionItem({
+function TopicItem({
   item,
   index,
   canMarkDiscussed,
   onToggleDiscussed,
 }: {
-  item: FlaggedItem;
+  item: DiscussionItem;
   index: number;
   canMarkDiscussed: boolean;
   onToggleDiscussed?: (updateId: string, fieldKey: string) => void;
@@ -187,7 +209,7 @@ function DiscussionItem({
             <summary className="flex min-h-9 cursor-pointer list-none flex-wrap items-center gap-x-2 text-base font-semibold text-grafite dark:text-marmol/75 [&::-webkit-details-marker]:hidden">
               <CheckIcon className="size-4 shrink-0" />
               <span>
-                {item.name} · {item.label}
+                {item.name}
                 <span className="sr-only">, discussed</span>
               </span>
               <span className="text-sm font-normal text-ember-ink underline underline-offset-2">
@@ -202,14 +224,12 @@ function DiscussionItem({
         ) : (
           <>
             <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-base font-semibold text-ardesia dark:text-marmol">
-              <span>
-                {item.name} · {item.label}
-              </span>
-              <FlagCount count={item.flagCount} />
+              <span>{item.name}</span>
+              {item.voteCount > 0 && <VoteCount count={item.voteCount} />}
             </p>
             <ClampedText
               lines={5}
-              label={`${item.name}’s “${item.label}”`}
+              label={`${item.name}’s ${item.label}`}
               className="whitespace-pre-line text-lg [overflow-wrap:anywhere] text-ardesia sm:text-xl dark:text-marmol"
             >
               {item.value}
@@ -222,7 +242,7 @@ function DiscussionItem({
               type="button"
               onClick={() => onToggleDiscussed(item.updateId, item.fieldKey)}
               aria-pressed={item.discussed}
-              aria-label={`${item.discussed ? "Undo discussed:" : "Mark discussed:"} ${item.name}’s “${item.label}”`}
+              aria-label={`${item.discussed ? "Undo discussed:" : "Mark discussed:"} ${item.name}’s ${item.label}`}
               className="-ml-2 inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-grafite transition hover:text-ember-ink max-sm:min-h-11 dark:text-marmol/80"
             >
               <CheckIcon className="size-4" />
@@ -235,55 +255,57 @@ function DiscussionItem({
   );
 }
 
-// How many people flagged this item; each list is ranked by it.
-function FlagCount({ count }: { count: number }) {
+// How many people upvoted this topic; each list is ranked by it.
+function VoteCount({ count }: { count: number }) {
   return (
     <span className="inline-flex items-center gap-1 rounded-full border border-ember-ink/50 px-2 py-0.5 text-sm font-semibold tabular-nums text-ember-ink">
-      <FlagIcon filled className="size-3.5" />
+      <UpvoteIcon filled className="size-3.5" />
       {count}
-      <span className="sr-only"> {count === 1 ? "flag" : "flags"}</span>
+      <span className="sr-only"> {count === 1 ? "upvote" : "upvotes"}</span>
     </span>
   );
 }
 
-function AgendaGroup({
+function InfoList({ items, label }: { items: AgendaInfoItem[]; label: string }) {
+  return (
+    <ul className="mt-2 flex flex-col gap-2">
+      {items.map((item) => (
+        <li key={item.id}>
+          <ClampedText
+            lines={3}
+            label={`${item.name}’s ${label}`}
+            className="whitespace-pre-line text-base [overflow-wrap:anywhere] text-ardesia dark:text-marmol"
+          >
+            <span className="font-semibold">{item.name}</span>
+            <span className="text-grafite dark:text-marmol/70"> · </span>
+            {item.text}
+          </ClampedText>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// A small labelled list inside the "Wins and offers" block.
+function InfoGroup({
   title,
-  icon,
   items,
   total,
 }: {
   title: string;
-  icon: ReactNode;
   items: AgendaInfoItem[];
   total?: number;
 }) {
   if (items.length === 0) return null;
   return (
     <div>
-      <h3 className="flex items-center gap-2 font-heading text-xl font-bold text-ardesia dark:text-marmol">
-        <span className="text-ember-ink">{icon}</span>
+      <h4 className="text-base font-semibold text-grafite dark:text-marmol/80">
         {title}
         {total !== undefined && (
-          <span className="font-sans text-base font-semibold tabular-nums text-ember-ink">
-            · {total} this week
-          </span>
+          <span className="tabular-nums text-ember-ink"> · {total} this week</span>
         )}
-      </h3>
-      <ul className="mt-2 flex flex-col gap-2">
-        {items.map((item) => (
-          <li key={item.id}>
-            <ClampedText
-              lines={3}
-              label={`${item.name}’s ${title}`}
-              className="whitespace-pre-line text-base [overflow-wrap:anywhere] text-ardesia dark:text-marmol"
-            >
-              <span className="font-semibold">{item.name}</span>
-              <span className="text-grafite dark:text-marmol/70"> · </span>
-              {item.text}
-            </ClampedText>
-          </li>
-        ))}
-      </ul>
+      </h4>
+      <InfoList items={items} label={title} />
     </div>
   );
 }

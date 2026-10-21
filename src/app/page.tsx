@@ -809,8 +809,8 @@ export default function Home() {
   const inReveal = session?.phase === "reveal";
   const inAgenda = session?.phase === "agenda";
   const isClosed = session?.phase === "closed";
-  // Counts come from the agenda itself, so items added by "Blocked or struggling" count too.
-  const agendaItems = buildAgenda(participants, allUpdates, reactions).flagged;
+  // Counts come from the agenda itself, so they match what the room sees.
+  const agendaItems = buildAgenda(participants, allUpdates, reactions).discussion;
   const flaggedTopicCount = agendaItems.length;
   const discussedCount = agendaItems.filter((item) => item.discussed).length;
   const leftToDiscuss = flaggedTopicCount - discussedCount;
@@ -1167,13 +1167,13 @@ export default function Home() {
               {isViewer && (
                 <p className="-mt-2 text-sm text-grafite dark:text-marmol/80">
                   You&apos;re viewing this week&apos;s updates read-only. Only people who joined
-                  before the reveal can flag topics.
+                  before the reveal can upvote.
                 </p>
               )}
               {!isViewer && (
                 <p className="-mt-2 text-base text-grafite dark:text-marmol/80">
-                  Read, then tap the flag on anything the team should discuss. Blocked items
-                  join the agenda automatically.
+                  Read, then upvote what the team should talk about. Hive mind requests are
+                  always on the agenda; anything cool joins it once it has an upvote.
                   {!isFacilitator && ` ${facilitatorName} builds the agenda when everyone is ready.`}
                 </p>
               )}
@@ -1219,14 +1219,14 @@ export default function Home() {
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
             <p className="text-base font-semibold text-ardesia dark:text-marmol">
               {flaggedTopicCount === 0
-                ? "Nothing flagged yet"
+                ? "Nothing to discuss yet"
                 : `${flaggedTopicCount} ${
                     flaggedTopicCount === 1 ? "topic" : "topics"
-                  } on the agenda so far`}
+                  } to discuss so far`}
             </p>
             <ConfirmButton
               label="Build the agenda"
-              prompt="Move everyone on to the agenda? Flagging locks once it starts."
+              prompt="Move everyone on to the agenda? Upvoting locks once it starts."
               confirmLabel="Yes, build it"
               onConfirm={handleStartAgenda}
               disabled={busy}
