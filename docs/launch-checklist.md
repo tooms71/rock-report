@@ -137,3 +137,23 @@ history at commit `aa20353`.
   does not disappear if one person leaves?
 - Who should be notified if the Supabase project pauses? (The free tier pauses after about
   a week of no use and must be restored from the dashboard.)
+
+## Planned: your open roles inside the writing form (waiting on Notion access)
+
+Idea: when someone opens the writing screen, show their own open roles from Notion with
+four buttons per role: on track (green), stalled or needs help (red), offer extended, offer
+accepted. Decisions so far:
+
+- The buttons **feed the agenda**: offer extended fills Offers out, offer accepted fills
+  Offers closed, stalled adds the role to Blocked or struggling.
+- Nothing is written back to Notion. The app keeps its own weekly record; each role links to
+  its Notion page.
+- Matching a person to their roles: the Notion **Team Directory** has an **Email** column,
+  and the Open Roles database links each role to a Talent Partner in that directory.
+- **Blocked until:** a Notion admin creates a **read-only internal connection** and shares the
+  Open Roles and Team Directory databases with it. Build nothing against real data before then.
+- Build plan once unblocked: a server route that verifies the Supabase sign-in and the
+  @carrara.is email before returning anyone's roles (role names include client names), a new
+  weekly-status table locked down like the others, then the form section and agenda wiring.
+  Can be built first against sample data.
+- Drawn icons with text labels are the default; real emoji only if Shannon prefers.
