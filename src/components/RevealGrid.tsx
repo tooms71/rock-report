@@ -136,9 +136,6 @@ function UpdateCard({
     reactions.filter(
       (r) => r.target_type === "field" && r.field_key === key && r.emoji === FLAG_EMOJI
     );
-  const flagCount = reactions.filter(
-    (r) => r.target_type === "field" && r.emoji === FLAG_EMOJI
-  ).length;
   // Offers closed lives on the agenda, so the card only carries Offers out, and only
   // when there is something to discuss.
   const hasOffers = !!update.offers_made;
@@ -153,13 +150,6 @@ function UpdateCard({
         <h3 className="font-heading text-xl font-bold text-ardesia dark:text-marmol">
           {name}
         </h3>
-        {flagCount > 0 && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-ember-fill px-2 py-0.5 text-xs font-semibold text-white">
-            <FlagIcon filled className="size-3" />
-            {flagCount}
-            <span className="sr-only"> flagged for discussion</span>
-          </span>
-        )}
       </div>
       {lateDraft && (
         <p className="mt-1 text-sm text-grafite dark:text-marmol/70">
@@ -272,15 +262,17 @@ function FlagButton({
       onClick={handleClick}
       aria-pressed={flaggedByMe}
       aria-label={`Flag ${subject}’s “${label}” for discussion`}
-      className={`inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-sm font-semibold transition max-sm:min-h-11 ${
+      title="Flag for discussion"
+      className={`inline-flex min-h-8 min-w-8 shrink-0 items-center justify-center gap-1 rounded-lg px-1.5 text-sm font-semibold transition max-sm:min-h-11 max-sm:min-w-11 ${
         flaggedByMe
-          ? "border-ember-fill bg-ember-fill text-white"
-          : "border-grafite/50 text-ardesia hover:border-ember-ink hover:text-ember-ink dark:border-white/40 dark:text-marmol"
+          ? "bg-ember-ink/10 text-ember-ink"
+          : count > 0
+          ? "text-ember-ink hover:bg-ember-ink/10"
+          : "text-grafite hover:bg-ember-ink/10 hover:text-ember-ink dark:text-marmol/70"
       }`}
     >
-      <FlagIcon filled={flaggedByMe} className="size-3.5" />
-      <span>{flaggedByMe ? "Flagged" : "Flag"}</span>
-      {count > 0 && <span className="tabular-nums">· {count}</span>}
+      <FlagIcon filled={flaggedByMe} className="size-4" />
+      {count > 0 && <span className="tabular-nums">{count}</span>}
     </button>
     </span>
   );

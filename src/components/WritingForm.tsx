@@ -154,7 +154,7 @@ export function WritingForm({
 
       <TextField
         label="Blocked or struggling?"
-        hint="Anything you're stuck on or finding hard that you'd like to bring to the group. Leave this blank if you're not blocked: whatever you write goes straight onto the agenda."
+        hint="Leave blank if you're not blocked. Whatever you write goes straight onto the agenda."
         value={fields.need_brain_on}
         onChange={(v) => updateField("need_brain_on", v)}
         rows={3}
@@ -192,15 +192,11 @@ export function WritingForm({
               : "text-grafite dark:text-marmol/70"
           }`}
         >
-          {saveState === "idle" && "Your answers save as you type."}
+          {saveState === "idle" && "Saves as you type. Everyone sees it when time's up."}
           {saveState === "saving" && "Saving…"}
-          {saveState === "saved" && "Saved. You can keep editing until you submit."}
+          {saveState === "saved" && "Saved. Keep editing until you submit."}
           {saveState === "error" &&
             "Couldn't save just now. Your text is still here, and we'll try again as you type."}
-        </p>
-        <p className="text-xs text-grafite dark:text-marmol/70">
-          Everyone sees this when time&apos;s up. Whatever is saved by then is shown,
-          even if you haven&apos;t pressed Submit. Tip: Cmd or Ctrl + Enter submits.
         </p>
       </div>
     </div>

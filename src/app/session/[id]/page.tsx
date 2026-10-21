@@ -138,22 +138,25 @@ export default function SessionDetailPage() {
         }
       />
       <AgendaPanel participants={participants} updates={updates} reactions={reactions} closed={session.phase === "closed"} />
-      <section aria-labelledby="updates-heading" className="flex flex-col gap-4">
-        <h2
-          id="updates-heading"
-          className="font-heading text-2xl font-bold text-ardesia dark:text-marmol"
-        >
+      <details className="group">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 font-heading text-2xl font-bold text-ardesia dark:text-marmol [&::-webkit-details-marker]:hidden">
           Everyone&apos;s updates
-        </h2>
-        <RevealGrid
-          participants={participants}
-          updates={updates}
-          reactions={reactions}
-          myParticipantId=""
-          onToggleFlag={() => {}}
-          readOnly
-        />
-      </section>
+          <span className="font-sans text-sm font-normal text-ember-ink underline underline-offset-2">
+            <span className="group-open:hidden">Show</span>
+            <span className="hidden group-open:inline">Hide</span>
+          </span>
+        </summary>
+        <div className="mt-4">
+          <RevealGrid
+            participants={participants}
+            updates={updates}
+            reactions={reactions}
+            myParticipantId=""
+            onToggleFlag={() => {}}
+            readOnly
+          />
+        </div>
+      </details>
     </main>
   );
 }

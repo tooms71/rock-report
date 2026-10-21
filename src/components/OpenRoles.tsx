@@ -6,25 +6,14 @@ const OPEN_ROLES_URL =
 
 export function OpenRoles() {
   return (
-    <section aria-labelledby="roles-heading" className="flex flex-col gap-3">
-      <h2
-        id="roles-heading"
-        className="font-heading text-2xl font-bold text-ardesia dark:text-marmol"
-      >
-        Open roles
-      </h2>
-      <p className="text-base text-grafite dark:text-marmol/80">
-        Every open role, with talent partner, location and job description, is in Notion.
-      </p>
-      <a
-        href={OPEN_ROLES_URL}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex min-h-11 items-center self-start rounded-lg border border-grafite/50 px-4 text-sm font-semibold text-ardesia transition hover:border-ember-ink hover:text-ember-ink dark:border-white/40 dark:text-marmol"
-      >
-        Open the roles list in Notion
-        <span className="sr-only"> (opens in a new tab)</span>
-      </a>
-    </section>
+    <a
+      href={OPEN_ROLES_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex min-h-11 items-center self-start text-sm font-semibold text-ardesia underline decoration-grafite/40 underline-offset-4 transition hover:text-ember-ink hover:decoration-ember-ink dark:text-marmol dark:decoration-white/40"
+    >
+      See every open role in Notion
+      <span className="sr-only"> (opens in a new tab)</span>
+    </a>
   );
 }

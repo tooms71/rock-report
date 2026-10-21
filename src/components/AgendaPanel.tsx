@@ -52,16 +52,12 @@ export function AgendaPanel({
       }`}
       style={animate ? ({ "--arrive-delay": "140ms" } as CSSProperties) : undefined}
     >
-      <h2
-        id="agenda-heading"
-        className="font-heading text-4xl font-bold text-ardesia dark:text-marmol"
-      >
+      {/* The page already says "Agenda"; this names the region for screen readers. */}
+      <h2 id="agenda-heading" className="sr-only">
         Agenda
       </h2>
 
-      <div
-        className={`mt-6 grid gap-10 ${hasInfo ? "md:grid-cols-[1.5fr_1fr] md:gap-14" : ""}`}
-      >
+      <div className={`grid gap-10 ${hasInfo ? "md:grid-cols-[1.5fr_1fr] md:gap-14" : ""}`}>
         <div className="flex flex-col gap-10">
           <DiscussionSection
             title="Flagged for discussion"
@@ -126,30 +122,28 @@ function DiscussionSection({
 
   return (
     <div>
-      <h3 className="flex items-center gap-2 font-heading text-2xl font-bold text-ember-ink">
-        {icon}
+      <h3 className="flex items-center gap-2 font-heading text-2xl font-bold text-ardesia dark:text-marmol">
+        <span className="text-ember-ink">{icon}</span>
         {title}
       </h3>
       {items.length === 0 ? (
         <p className="mt-1 text-base text-grafite dark:text-marmol/80">{emptyText}</p>
       ) : (
         <>
-          <p
-            className={`mt-1 flex items-center gap-1.5 text-base ${
-              remaining === 0
-                ? "font-semibold text-ember-ink"
-                : "text-grafite dark:text-marmol/80"
-            }`}
-          >
-            {remaining === 0 ? (
-              <>
-                <CheckIcon className="size-5" />
-                All discussed. No stone left unturned.
-              </>
-            ) : (
-              `${remaining} ${closed ? "not discussed" : "left to discuss"}`
-            )}
-          </p>
+          {/* The footer already counts what is left; here only the good news (and, once
+              closed, what was not reached). */}
+          {remaining === 0 ? (
+            <p className="mt-1 flex items-center gap-1.5 text-base text-grafite dark:text-marmol/80">
+              <CheckIcon className="size-5" />
+              All discussed. No stone left unturned.
+            </p>
+          ) : (
+            closed && (
+              <p className="mt-1 text-base text-grafite dark:text-marmol/80">
+                {remaining} not discussed
+              </p>
+            )
+          )}
           <ol className="mt-5 flex flex-col gap-6">
             {items.map((item, index) => (
               <DiscussionItem
@@ -229,7 +223,7 @@ function DiscussionItem({
               onClick={() => onToggleDiscussed(item.updateId, item.fieldKey)}
               aria-pressed={item.discussed}
               aria-label={`${item.discussed ? "Undo discussed:" : "Mark discussed:"} ${item.name}’s “${item.label}”`}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-grafite/50 px-3 text-sm font-semibold text-grafite transition hover:border-ember-ink hover:text-ember-ink max-sm:min-h-11 dark:border-white/40 dark:text-marmol/80"
+              className="-ml-2 inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-grafite transition hover:text-ember-ink max-sm:min-h-11 dark:text-marmol/80"
             >
               <CheckIcon className="size-4" />
               {item.discussed ? "Discussed. Undo" : "Mark discussed"}

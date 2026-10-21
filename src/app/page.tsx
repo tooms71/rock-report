@@ -86,8 +86,6 @@ export default function Home() {
   const [allUpdates, setAllUpdates] = useState<UpdateRow[]>([]);
   const [myUpdate, setMyUpdate] = useState<UpdateRow | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
-  // Highest remaining time seen, so the progress bar stays accurate after "+1 min".
-  const [timerCeiling, setTimerCeiling] = useState(WRITING_DURATION_MS / 1000);
   const [reactions, setReactions] = useState<ReactionRow[]>([]);
   // Bumped whenever I change something, so a refresh that was already in flight can't
   // overwrite my change with older data.
@@ -437,7 +435,6 @@ export default function Home() {
     function tick() {
       const remaining = Math.max(0, (endsAt - Date.now()) / 1000);
       setSecondsLeft(remaining);
-      setTimerCeiling((ceiling) => (remaining > ceiling ? remaining : ceiling));
     }
     tick();
     const interval = setInterval(tick, 250);
@@ -818,8 +815,6 @@ export default function Home() {
   const discussedCount = agendaItems.filter((item) => item.discussed).length;
   const leftToDiscuss = flaggedTopicCount - discussedCount;
 
-  const timerRatio =
-    secondsLeft === null ? 1 : Math.min(1, Math.max(0, secondsLeft / timerCeiling));
   const timerUrgent = secondsLeft !== null && secondsLeft <= 30;
   const countdownBeat =
     secondsLeft !== null && secondsLeft > 0 && secondsLeft <= 3
@@ -872,7 +867,7 @@ export default function Home() {
         </div>
 
         {/* The rock is for the doorway; during the 3-minute timer the form comes first. */}
-        {!showingResults && session?.phase !== "writing" && <RockCard />}
+        {!showingResults && session?.phase !== "writing" && <RockCard compact />}
       </div>
 
       <p className="-mt-3 text-sm text-grafite dark:text-marmol/70">
@@ -983,12 +978,6 @@ export default function Home() {
                   </button>
                 )}
               </div>
-            </div>
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-grafite/15 dark:bg-white/15">
-              <div
-                className="h-full origin-left rounded-full bg-ember-fill transition-transform duration-300 ease-linear"
-                style={{ transform: `scaleX(${timerRatio})` }}
-              />
             </div>
             <p className="sr-only" role="status" aria-live="polite">
               {timerAnnouncement}
@@ -1123,10 +1112,10 @@ export default function Home() {
                 : inAgenda
                 ? `${flaggedTopicCount} ${
                     flaggedTopicCount === 1 ? "topic" : "topics"
-                  } to discuss · Facilitator: ${facilitatorName}`
+                  } to discuss`
                 : `${updatesInCount} ${updatesInCount === 1 ? "update" : "updates"} in${
                     spareSeconds >= 5 ? ` · ${formatClock(spareSeconds)} to spare` : ""
-                  } · Facilitator: ${facilitatorName}`}
+                  }`}
             </p>
             {isClosed && (
               <p className="mt-1 text-sm text-grafite dark:text-marmol/80">
@@ -1170,33 +1159,53 @@ export default function Home() {
             />
           )}
 
-          <section aria-labelledby="updates-heading" className="flex flex-col gap-4">
-            <h2
-              id="updates-heading"
-              className="font-heading text-2xl font-bold text-ardesia dark:text-marmol"
-            >
-              Everyone&apos;s updates
-            </h2>
-            {inReveal && !isViewer && (
-              <p className="-mt-2 text-base text-grafite dark:text-marmol/80">
-                Take a moment to read, then click or tap Flag on anything the team should
-                discuss. The more flags, the higher it sits on the agenda. Anything under
-                Blocked or struggling goes on the agenda by itself.{" "}
-                {isFacilitator
-                  ? "When everyone has had time, build the agenda."
-                  : `${facilitatorName} builds the agenda when everyone has had time.`}
-              </p>
-            )}
-            <RevealGrid
-              participants={participants}
-              updates={allUpdates}
-              reactions={reactions}
-              myParticipantId={me.id}
-              onToggleFlag={handleToggleFlag}
-              readOnly={!inReveal || isViewer}
-              animate={inReveal}
-            />
-          </section>
+          {inReveal ? (
+            <section aria-labelledby="updates-heading" className="flex flex-col gap-4">
+              <h2
+                id="updates-heading"
+                className="font-heading text-2xl font-bold text-ardesia dark:text-marmol"
+              >
+                Everyone&apos;s updates
+              </h2>
+              {!isViewer && (
+                <p className="-mt-2 text-base text-grafite dark:text-marmol/80">
+                  Read, then tap the flag on anything the team should discuss. Blocked items
+                  join the agenda automatically.
+                  {!isFacilitator && ` ${facilitatorName} builds the agenda when everyone is ready.`}
+                </p>
+              )}
+              <RevealGrid
+                participants={participants}
+                updates={allUpdates}
+                reactions={reactions}
+                myParticipantId={me.id}
+                onToggleFlag={handleToggleFlag}
+                readOnly={isViewer}
+                animate
+              />
+            </section>
+          ) : (
+            // The agenda already lists what matters, so the full cards are one click away.
+            <details className="group">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 font-heading text-2xl font-bold text-ardesia dark:text-marmol [&::-webkit-details-marker]:hidden">
+                Everyone&apos;s updates
+                <span className="font-sans text-sm font-normal text-ember-ink underline underline-offset-2">
+                  <span className="group-open:hidden">Show</span>
+                  <span className="hidden group-open:inline">Hide</span>
+                </span>
+              </summary>
+              <div className="mt-4">
+                <RevealGrid
+                  participants={participants}
+                  updates={allUpdates}
+                  reactions={reactions}
+                  myParticipantId={me.id}
+                  onToggleFlag={handleToggleFlag}
+                  readOnly
+                />
+              </div>
+            </details>
+          )}
 
           {isClosed ? <RockCard /> : <RockCard compact />}
 
