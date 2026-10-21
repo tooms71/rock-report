@@ -867,7 +867,7 @@ export default function Home() {
         </div>
 
         {/* The rock is for the doorway; during the 3-minute timer the form comes first. */}
-        {!showingResults && session?.phase !== "writing" && <RockCard compact />}
+        {!showingResults && session?.phase !== "writing" && <RockCard />}
       </div>
 
       <p className="-mt-3 text-sm text-grafite dark:text-marmol/70">
@@ -1047,8 +1047,6 @@ export default function Home() {
               <p className="-mt-2 text-sm text-grafite dark:text-marmol/80">
                 Editing un-submits you, so submit again when you&apos;re done.
               </p>
-              {/* A moment for the wait; the Rock stays out of the way while writing. */}
-              <RockCard />
             </div>
           )}
 
@@ -1086,66 +1084,57 @@ export default function Home() {
 
       {showingResults && session && me && (
         <div className="flex flex-col gap-8">
-          <header className="arrive">
-            <h2 className="font-heading text-3xl font-bold text-ardesia dark:text-marmol">
-              {isClosed
-                ? "That’s a wrap"
-                : inAgenda
-                ? "Today’s agenda"
-                : everyoneSubmitted
-                ? "Everyone’s in"
-                : "Updates are in"}
-            </h2>
-            <p className="mt-1 text-base text-grafite dark:text-marmol/80">
-              {isClosed
-                ? `${updatesInCount} ${updatesInCount === 1 ? "update" : "updates"} shared${
-                    discussedCount === 0
-                      ? ""
-                      : leftToDiscuss === 0
-                      ? ` · all ${flaggedTopicCount} ${
-                          flaggedTopicCount === 1 ? "topic" : "topics"
-                        } discussed`
-                      : ` · ${discussedCount} ${
-                          discussedCount === 1 ? "topic" : "topics"
-                        } discussed`
-                  }`
-                : inAgenda
-                ? `${flaggedTopicCount} ${
-                    flaggedTopicCount === 1 ? "topic" : "topics"
-                  } to discuss`
-                : `${updatesInCount} ${updatesInCount === 1 ? "update" : "updates"} in${
-                    spareSeconds >= 5 ? ` · ${formatClock(spareSeconds)} to spare` : ""
-                  }`}
-            </p>
-            {isClosed && (
-              <p className="mt-1 text-sm text-grafite dark:text-marmol/80">
-                Read-only now. See you next week. Next up: {nextRockName}.
+          {!inReveal && (
+            <header className="arrive">
+              <h2 className="font-heading text-3xl font-bold text-ardesia dark:text-marmol">
+                {isClosed ? "That’s a wrap" : "Today’s agenda"}
+              </h2>
+              <p className="mt-1 text-base text-grafite dark:text-marmol/80">
+                {isClosed
+                  ? `${updatesInCount} ${updatesInCount === 1 ? "update" : "updates"} shared${
+                      discussedCount === 0
+                        ? ""
+                        : leftToDiscuss === 0
+                        ? ` · all ${flaggedTopicCount} ${
+                            flaggedTopicCount === 1 ? "topic" : "topics"
+                          } discussed`
+                        : ` · ${discussedCount} ${
+                            discussedCount === 1 ? "topic" : "topics"
+                          } discussed`
+                    }`
+                  : `${flaggedTopicCount} ${
+                      flaggedTopicCount === 1 ? "topic" : "topics"
+                    } to discuss`}
               </p>
-            )}
-            {isClosed && (
-              <div className="mt-4">
-                <CopyButton
-                  primary
-                  label="Copy meeting notes"
-                  copiedText="Copied. Paste it into Slack or Notion."
-                  getText={() =>
-                    buildMeetingNotes({
-                      weekLabel: formatWeekOf(session.week_of),
-                      participants,
-                      updates: allUpdates,
-                      reactions,
-                    })
-                  }
-                />
-              </div>
-            )}
-            {isViewer && (
-              <p className="mt-1 text-sm text-grafite dark:text-marmol/80">
-                You&apos;re viewing this week&apos;s updates read-only. Only people who
-                joined before the reveal can flag topics.
-              </p>
-            )}
-          </header>
+              {isClosed && (
+                <p className="mt-1 text-sm text-grafite dark:text-marmol/80">
+                  Read-only now. See you next week. Next up: {nextRockName}.
+                </p>
+              )}
+              {isClosed && (
+                <div className="mt-4">
+                  <CopyButton
+                    primary
+                    label="Copy meeting notes"
+                    copiedText="Copied. Paste it into Slack or Notion."
+                    getText={() =>
+                      buildMeetingNotes({
+                        weekLabel: formatWeekOf(session.week_of),
+                        participants,
+                        updates: allUpdates,
+                        reactions,
+                      })
+                    }
+                  />
+                </div>
+              )}
+              {isViewer && (
+                <p className="mt-1 text-sm text-grafite dark:text-marmol/80">
+                  You&apos;re viewing this week&apos;s updates read-only.
+                </p>
+              )}
+            </header>
+          )}
 
           {!inReveal && (
             <AgendaPanel
@@ -1167,6 +1156,20 @@ export default function Home() {
               >
                 Everyone&apos;s updates
               </h2>
+              {/* Did everyone make it? Said once, here, instead of in a second headline. */}
+              <p className="-mt-2 text-base text-grafite dark:text-marmol/80">
+                {everyoneSubmitted
+                  ? `${updatesInCount} ${updatesInCount === 1 ? "update" : "updates"} in${
+                      spareSeconds >= 5 ? ` · ${formatClock(spareSeconds)} to spare` : ""
+                    }`
+                  : `${submittedCount} of ${participants.length} submitted. Drafts are marked.`}
+              </p>
+              {isViewer && (
+                <p className="-mt-2 text-sm text-grafite dark:text-marmol/80">
+                  You&apos;re viewing this week&apos;s updates read-only. Only people who joined
+                  before the reveal can flag topics.
+                </p>
+              )}
               {!isViewer && (
                 <p className="-mt-2 text-base text-grafite dark:text-marmol/80">
                   Read, then tap the flag on anything the team should discuss. Blocked items
@@ -1206,8 +1209,6 @@ export default function Home() {
               </div>
             </details>
           )}
-
-          {isClosed ? <RockCard /> : <RockCard compact />}
 
           {!inReveal && <OpenRoles />}
         </div>

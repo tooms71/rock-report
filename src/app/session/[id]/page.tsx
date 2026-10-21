@@ -4,10 +4,9 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { RockCard } from "@/components/RockCard";
 import { AgendaPanel } from "@/components/AgendaPanel";
 import { RevealGrid, type ReactionRow } from "@/components/RevealGrid";
-import { formatWeekOf, parseWeekOf } from "@/lib/date";
+import { formatWeekOf } from "@/lib/date";
 import { CopyButton } from "@/components/CopyButton";
 import { buildMeetingNotes } from "@/lib/summary";
 import { formatSessionSummary, summarizeSession } from "@/lib/agenda";
@@ -121,7 +120,6 @@ export default function SessionDetailPage() {
             ← Archive
           </Link>
         </div>
-        <RockCard compact date={parseWeekOf(session.week_of)} />
       </div>
 
       <CopyButton

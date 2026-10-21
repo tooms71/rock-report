@@ -84,7 +84,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       <h1 className="font-heading text-3xl font-bold text-ardesia dark:text-marmol">
         Rock Report
       </h1>
-      <RockCard compact />
+      <RockCard />
       {state.status === "not_allowed" ? (
         <div className="flex flex-col gap-3">
           <p role="alert" className="text-base text-ardesia dark:text-marmol">

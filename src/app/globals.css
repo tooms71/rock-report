@@ -128,20 +128,6 @@ textarea {
   }
 }
 
-/* Marble: faint veining drawn as an inline SVG, so no image files are needed. */
-.marble {
-  background-color: #f2efea;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='200' viewBox='0 0 600 200' preserveAspectRatio='none'%3E%3Cpath d='M-10 150 C120 110 190 190 320 130 S520 60 620 100' fill='none' stroke='%232e2b2b' stroke-opacity='.09' stroke-width='1.4'/%3E%3Cpath d='M-10 60 C90 90 170 20 300 50 S500 140 620 80' fill='none' stroke='%232e2b2b' stroke-opacity='.06' stroke-width='1'/%3E%3Cpath d='M200 -10 C230 60 180 120 240 210' fill='none' stroke='%232e2b2b' stroke-opacity='.06' stroke-width='1'/%3E%3C/svg%3E");
-  background-size: 100% 100%;
-}
-
-@media (prefers-color-scheme: dark) {
-  .marble {
-    background-color: rgb(255 255 255 / 0.08);
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='200' viewBox='0 0 600 200' preserveAspectRatio='none'%3E%3Cpath d='M-10 150 C120 110 190 190 320 130 S520 60 620 100' fill='none' stroke='%23ffffff' stroke-opacity='.09' stroke-width='1.4'/%3E%3Cpath d='M-10 60 C90 90 170 20 300 50 S500 140 620 80' fill='none' stroke='%23ffffff' stroke-opacity='.06' stroke-width='1'/%3E%3Cpath d='M200 -10 C230 60 180 120 240 210' fill='none' stroke='%23ffffff' stroke-opacity='.06' stroke-width='1'/%3E%3C/svg%3E");
-  }
-}
-
 /* Pens-down countdown: 3, 2, 1 land and fade as the form is about to go. */
 @keyframes beat {
   0% {
