@@ -119,15 +119,6 @@ redeploys it automatically. Local development still works at http://localhost:30
 
 Do not share the deployed link with the team before step 4 passes.
 
-## Optional: the Notion open-roles table
-
-The reveal page links to the Notion roles view today. To show the roles inside the app
-instead, a Notion admin needs to create an **internal connection** ("API token"), share the
-Open Roles and Talent Partner databases with it, and hand the secret to Shannon. A
-personal access token also works for demos but carries all of the creator's Notion
-access, so use it only on a laptop. The earlier version of this feature is in git
-history at commit `aa20353`.
-
 ## Questions to ask the helper
 
 - Can the Google sign-in be restricted to our organization (Internal), or do we need a
@@ -138,22 +129,26 @@ history at commit `aa20353`.
 - Who should be notified if the Supabase project pauses? (The free tier pauses after about
   a week of no use and must be restored from the dashboard.)
 
-## Planned: your open roles inside the writing form (waiting on Notion access)
+## Your open roles inside the writing form (built)
 
-Idea: when someone opens the writing screen, show their own open roles from Notion with
-four buttons per role: on track (green), stalled or needs help (red), offer extended, offer
-accepted. Decisions so far:
+When someone opens the writing screen they see their own open roles from Notion, with four
+buttons per role: On track, Stalled, Offer extended, Offer accepted. The buttons feed the
+agenda: Offer extended goes under Offers extended, Offer accepted under Offers accepted, and
+Stalled is added to the Hive mind list. Nothing is written back to Notion; the app keeps its
+own weekly record in the `role_updates` table (`supabase/add-role-updates.sql`, run once).
 
-- The buttons **feed the agenda**: offer extended fills Offers out, offer accepted fills
-  Offers closed, stalled adds the role to Blocked or struggling.
-- Nothing is written back to Notion. The app keeps its own weekly record; each role links to
-  its Notion page.
-- Matching a person to their roles: the Notion **Team Directory** has an **Email** column,
-  and the Open Roles database links each role to a Talent Partner in that directory.
-- **Blocked until:** a Notion admin creates a **read-only internal connection** and shares the
-  Open Roles and Team Directory databases with it. Build nothing against real data before then.
-- Build plan once unblocked: a server route that verifies the Supabase sign-in and the
-  @carrara.is email before returning anyone's roles (role names include client names), a new
-  weekly-status table locked down like the others, then the form section and agenda wiring.
-  Can be built first against sample data.
-- Drawn icons with text labels are the default; real emoji only if Shannon prefers.
+How it works: `/api/my-roles` verifies the Supabase sign-in and the @carrara.is email, looks
+the person up in the Notion **Team Directory** by Google email, and returns the Open Roles
+(Status = Open) whose **Talent Partner** is that person.
+
+**To turn it on in each place the app runs** (the key is never committed):
+
+- Local: `NOTION_TOKEN` in `.env.local`.
+- Live: Vercel, Project Settings, Environment Variables, add `NOTION_TOKEN`, then redeploy.
+  Until it is set the roles section simply stays hidden.
+- The Notion connection needs read access only, and must be shared with the Open Roles and
+  Team Directory databases.
+
+**Data to keep tidy in Notion:** everyone needs their Carrara email in the Team Directory, and
+every open role needs a Talent Partner, or it shows up for nobody. People missing from the
+directory see a short "couldn't find you" note and cannot report offers.
