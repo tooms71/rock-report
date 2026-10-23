@@ -1,14 +1,17 @@
 // The four things someone can say about each of their open roles.
 export const ROLE_STATUSES = [
   // `short` is the label on the buttons in the narrow writing column; `label` is the full
-  // name used everywhere else.
-  { value: "on_track", label: "On track", short: "On track" },
-  { value: "stalled", label: "Stalled", short: "Stalled" },
-  { value: "offer_extended", label: "Offer extended", short: "Extended" },
-  { value: "offer_accepted", label: "Offer accepted", short: "Accepted" },
+  // name used everywhere else; `emoji` sits beside either (screen readers skip it).
+  { value: "on_track", label: "On track", short: "On track", emoji: "🟢" },
+  { value: "stalled", label: "Stalled", short: "Stalled", emoji: "🔴" },
+  { value: "offer_extended", label: "Offer extended", short: "Extended", emoji: "🤞" },
+  { value: "offer_accepted", label: "Offer accepted", short: "Accepted", emoji: "🎉" },
 ] as const;
 
 export type RoleStatus = (typeof ROLE_STATUSES)[number]["value"];
+
+export const roleStatusEmoji = (status: RoleStatus) =>
+  ROLE_STATUSES.find((s) => s.value === status)?.emoji ?? "";
 
 export const roleStatusLabel = (status: RoleStatus) =>
   ROLE_STATUSES.find((s) => s.value === status)?.label ?? status;

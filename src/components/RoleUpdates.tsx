@@ -8,7 +8,6 @@ import {
   type RoleStatus,
   type RoleUpdateRow,
 } from "@/lib/roleStatus";
-import { AlertIcon, CheckIcon, OffersIcon, SendIcon } from "@/components/Icons";
 
 type Loaded =
   | { kind: "loading" }
@@ -16,23 +15,12 @@ type Loaded =
   | { kind: "hidden" }
   | { kind: "error" };
 
-const STATUS_STYLE: Record<RoleStatus, { icon: typeof CheckIcon; selected: string }> = {
-  on_track: {
-    icon: CheckIcon,
-    selected: "border-moss-ink bg-moss-ink/15 text-moss-ink",
-  },
-  stalled: {
-    icon: AlertIcon,
-    selected: "border-ember-ink bg-ember-ink/10 text-ember-ink",
-  },
-  offer_extended: {
-    icon: SendIcon,
-    selected: "border-ardesia bg-ardesia/10 text-ardesia dark:border-marmol dark:bg-white/15 dark:text-marmol",
-  },
-  offer_accepted: {
-    icon: OffersIcon,
-    selected: "border-ember-fill bg-ember-fill text-white",
-  },
+const STATUS_STYLE: Record<RoleStatus, string> = {
+  on_track: "border-moss-ink bg-moss-ink/15 text-moss-ink",
+  stalled: "border-ember-ink bg-ember-ink/10 text-ember-ink",
+  offer_extended:
+    "border-ardesia bg-ardesia/10 text-ardesia dark:border-marmol dark:bg-white/15 dark:text-marmol",
+  offer_accepted: "border-ember-fill bg-ember-fill text-white",
 };
 
 // The signed-in person's own open roles from Notion, each with four status buttons. A tap
@@ -173,8 +161,8 @@ export function RoleUpdates({
                   aria-label={`Status for ${role.title}`}
                   className="grid grid-cols-4 gap-2"
                 >
-                  {ROLE_STATUSES.map(({ value, label, short }) => {
-                    const { icon: Icon, selected } = STATUS_STYLE[value];
+                  {ROLE_STATUSES.map(({ value, label, short, emoji }) => {
+                    const selected = STATUS_STYLE[value];
                     const on = current?.status === value;
                     return (
                       <button
@@ -183,13 +171,13 @@ export function RoleUpdates({
                         aria-pressed={on}
                         aria-label={label}
                         onClick={() => void choose(role, value)}
-                        className={`inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border px-1 text-sm font-semibold transition ${
+                        className={`inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border px-1 text-sm font-semibold transition max-sm:flex-col max-sm:gap-0 max-sm:py-1 ${
                           on
                             ? selected
                             : "border-grafite/40 text-ardesia hover:border-ember-ink hover:text-ember-ink dark:border-white/30 dark:text-marmol"
                         }`}
                       >
-                        <Icon className="size-4 shrink-0" />
+                        <span aria-hidden="true">{emoji}</span>
                         {short}
                       </button>
                     );
