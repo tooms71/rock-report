@@ -106,10 +106,10 @@ export function AgendaPanel({
           onToggleDiscussed={onToggleDiscussed}
         />
         <DiscussionSection
-          title="Anything cool you've seen"
+          title="Cool or valuable to share"
           icon={<SparkIcon className="size-6" />}
           items={agenda.cool}
-          emptyText="Nothing cool has been upvoted."
+          emptyText="Nothing here has been upvoted yet."
           canMarkDiscussed={canMarkDiscussed}
           closed={closed}
           onToggleDiscussed={onToggleDiscussed}
