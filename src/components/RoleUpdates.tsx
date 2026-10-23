@@ -171,9 +171,9 @@ export function RoleUpdates({
                 <div
                   role="group"
                   aria-label={`Status for ${role.title}`}
-                  className="grid grid-cols-2 gap-2 sm:grid-cols-4"
+                  className="grid grid-cols-4 gap-2"
                 >
-                  {ROLE_STATUSES.map(({ value, label }) => {
+                  {ROLE_STATUSES.map(({ value, label, short }) => {
                     const { icon: Icon, selected } = STATUS_STYLE[value];
                     const on = current?.status === value;
                     return (
@@ -181,15 +181,16 @@ export function RoleUpdates({
                         key={value}
                         type="button"
                         aria-pressed={on}
+                        aria-label={label}
                         onClick={() => void choose(role, value)}
-                        className={`inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border px-2 text-sm font-semibold transition ${
+                        className={`inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border px-1 text-sm font-semibold transition ${
                           on
                             ? selected
                             : "border-grafite/40 text-ardesia hover:border-ember-ink hover:text-ember-ink dark:border-white/30 dark:text-marmol"
                         }`}
                       >
                         <Icon className="size-4 shrink-0" />
-                        {label}
+                        {short}
                       </button>
                     );
                   })}

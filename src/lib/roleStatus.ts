@@ -1,9 +1,11 @@
 // The four things someone can say about each of their open roles.
 export const ROLE_STATUSES = [
-  { value: "on_track", label: "On track" },
-  { value: "stalled", label: "Stalled" },
-  { value: "offer_extended", label: "Offer extended" },
-  { value: "offer_accepted", label: "Offer accepted" },
+  // `short` is the label on the buttons in the narrow writing column; `label` is the full
+  // name used everywhere else.
+  { value: "on_track", label: "On track", short: "On track" },
+  { value: "stalled", label: "Stalled", short: "Stalled" },
+  { value: "offer_extended", label: "Offer extended", short: "Extended" },
+  { value: "offer_accepted", label: "Offer accepted", short: "Accepted" },
 ] as const;
 
 export type RoleStatus = (typeof ROLE_STATUSES)[number]["value"];
