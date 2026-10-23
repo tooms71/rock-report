@@ -1,11 +1,7 @@
-import {
-  DISCUSSED_EMOJI,
-  FLAG_EMOJI,
-  formatOffers,
-  type ReactionRow,
-} from "@/components/RevealGrid";
+import { DISCUSSED_EMOJI, FLAG_EMOJI, type ReactionRow } from "@/components/RevealGrid";
 import type { UpdateFields } from "@/components/WritingForm";
 import { COOL_KEY, HIVE_MIND_KEY, UPVOTE_FIELDS } from "@/lib/fields";
+import { roleFieldKey, type RoleUpdateRow } from "@/lib/roleStatus";
 import { isMeaningful, isShown } from "@/lib/updates";
 
 export type AgendaParticipant = { id: string; display_name: string };
@@ -31,20 +27,24 @@ export type DiscussionItem = {
 };
 
 // The meeting's agenda, in the order the room works through it:
-//   1. wins, offers accepted, offers extended  (read out; nothing to vote on)
+//   1. wins, offers accepted, offers extended  (offers come from the role buttons)
 //   2. new roles opened                         (read out)
-//   3. hive mind                                (everything people asked, most upvotes first)
+//   3. hive mind                                (everything people asked, plus every stalled
+//                                                role, most upvotes first)
 //   4. anything cool                            (only what got an upvote, most first)
 // Everyone is listed in the order they joined, so numbers match between the live view,
 // the archive and the copied notes.
 export function buildAgenda(
   participants: AgendaParticipant[],
   updates: AgendaUpdate[],
-  reactions: ReactionRow[]
+  reactions: ReactionRow[],
+  roleUpdates: RoleUpdateRow[] = []
 ) {
   const joinOrder = new Map(participants.map((p, index) => [p.id, index]));
+  const hasRoles = (participantId: string) =>
+    roleUpdates.some((r) => r.participant_id === participantId);
   const shown = updates
-    .filter((u) => isShown(u))
+    .filter((u) => isShown(u, hasRoles(u.participant_id)))
     .sort(
       (a, b) =>
         (joinOrder.get(a.participant_id) ?? Infinity) -
@@ -61,15 +61,21 @@ export function buildAgenda(
       return text ? [{ id: u.id, name: nameFor(u.participant_id), text }] : [];
     });
 
-  // Zero offers isn't agenda material.
-  const offersAccepted = infoItems((u) =>
-    u.offers_closed ? formatOffers(u.offers_closed, u.offers_closed_note) : null
-  );
-  const offersExtended = infoItems((u) =>
-    u.offers_made ? formatOffers(u.offers_made, u.offers_made_note) : null
-  );
-  const offersAcceptedTotal = shown.reduce((sum, u) => sum + (u.offers_closed ?? 0), 0);
-  const offersExtendedTotal = shown.reduce((sum, u) => sum + (u.offers_made ?? 0), 0);
+  // Offers are the roles someone tapped "offer accepted" or "offer extended" on.
+  const roleItems = (status: RoleUpdateRow["status"]): AgendaInfoItem[] =>
+    shown.flatMap((u) =>
+      roleUpdates
+        .filter((r) => r.participant_id === u.participant_id && r.status === status)
+        .map((r) => ({
+          id: r.id,
+          name: nameFor(u.participant_id),
+          text: r.note ? `${r.role_title} · ${r.note}` : r.role_title,
+        }))
+    );
+  const offersAccepted = roleItems("offer_accepted");
+  const offersExtended = roleItems("offer_extended");
+  const offersAcceptedTotal = offersAccepted.length;
+  const offersExtendedTotal = offersExtended.length;
   const wins = infoItems((u) => (isMeaningful(u.wins) ? u.wins : null));
   const rolesOpened = infoItems((u) => (isMeaningful(u.roles_opened) ? u.roles_opened : null));
 
@@ -88,12 +94,14 @@ export function buildAgenda(
       .map(keyOf)
   );
 
+  const voteCountFor = (itemKey: string) => voters.get(itemKey)?.size ?? 0;
+
   const topics = (fieldKey: string, label: string, onlyUpvoted: boolean): DiscussionItem[] => {
     const items = shown.flatMap((u): DiscussionItem[] => {
       const value = u[fieldKey as typeof HIVE_MIND_KEY | typeof COOL_KEY];
       if (!isMeaningful(value)) return [];
       const itemKey = `${u.id}:${fieldKey}`;
-      const voteCount = voters.get(itemKey)?.size ?? 0;
+      const voteCount = voteCountFor(itemKey);
       if (onlyUpvoted && voteCount === 0) return [];
       return [
         {
@@ -112,8 +120,30 @@ export function buildAgenda(
     return items.sort((a, b) => b.voteCount - a.voteCount);
   };
 
+  // A stalled role is a request for help, so it joins the hive mind list on its own.
+  const stalledRoles: DiscussionItem[] = shown.flatMap((u) =>
+    roleUpdates
+      .filter((r) => r.participant_id === u.participant_id && r.status === "stalled")
+      .map((r) => {
+        const fieldKey = roleFieldKey(r.notion_page_id);
+        const itemKey = `${u.id}:${fieldKey}`;
+        return {
+          itemKey,
+          updateId: u.id,
+          fieldKey,
+          name: nameFor(u.participant_id),
+          label: "Stalled role",
+          value: r.note ? `${r.role_title}. ${r.note}` : r.role_title,
+          discussed: discussedKeys.has(itemKey),
+          voteCount: voteCountFor(itemKey),
+        };
+      })
+  );
+
   const [hive, cool] = UPVOTE_FIELDS;
-  const hiveMind = topics(hive.key, hive.label, false);
+  const hiveMind = [...topics(hive.key, hive.label, false), ...stalledRoles].sort(
+    (a, b) => b.voteCount - a.voteCount
+  );
   const cools = topics(cool.key, cool.label, true);
 
   return {
@@ -133,8 +163,12 @@ export function buildAgenda(
 }
 
 // One-line counts for a session, used on the archive list and detail pages.
-export function summarizeSession(updates: AgendaUpdate[], reactions: ReactionRow[]) {
-  const { shown, discussion } = buildAgenda([], updates, reactions);
+export function summarizeSession(
+  updates: AgendaUpdate[],
+  reactions: ReactionRow[],
+  roleUpdates: RoleUpdateRow[] = []
+) {
+  const { shown, discussion } = buildAgenda([], updates, reactions, roleUpdates);
   return {
     updates: shown.length,
     topics: discussion.length,

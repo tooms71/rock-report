@@ -5,6 +5,8 @@ import type { UpdateFields } from "@/components/WritingForm";
 import { HiveIcon, SparkIcon, UpvoteIcon } from "@/components/Icons";
 import { ClampedText } from "@/components/ClampedText";
 import { HIVE_MIND_KEY, COOL_KEY } from "@/lib/fields";
+import { RoleStatusBadge } from "@/components/RoleStatusBadge";
+import { roleFieldKey, type RoleUpdateRow } from "@/lib/roleStatus";
 import { isMeaningful, isShown } from "@/lib/updates";
 
 type ParticipantRow = {
@@ -32,11 +34,6 @@ export type ReactionRow = {
 export const FLAG_EMOJI = "🚩";
 export const DISCUSSED_EMOJI = "✅";
 
-export function formatOffers(value: number | null, note: string | null): string | null {
-  if (value === null) return null;
-  return note ? `${value} · ${note}` : `${value}`;
-}
-
 // Cards cascade in after the agenda has landed (see .arrive in globals.css).
 const CARD_BASE_DELAY_MS = 320;
 const CARD_STAGGER_MS = 70;
@@ -50,6 +47,7 @@ export function RevealGrid({
   onToggleFlag,
   readOnly = false,
   animate = false,
+  roleUpdates = [],
 }: {
   participants: ParticipantRow[];
   updates: UpdateRow[];
@@ -58,6 +56,7 @@ export function RevealGrid({
   onToggleFlag: (updateId: string, fieldKey: string) => void;
   readOnly?: boolean;
   animate?: boolean;
+  roleUpdates?: RoleUpdateRow[];
 }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -69,6 +68,7 @@ export function RevealGrid({
             name={p.display_name}
             update={update}
             reactions={update ? reactions.filter((r) => r.target_update_id === update.id) : []}
+            roles={roleUpdates.filter((r) => r.participant_id === p.id)}
             myParticipantId={myParticipantId}
             onToggleFlag={onToggleFlag}
             readOnly={readOnly}
@@ -88,6 +88,7 @@ function UpdateCard({
   name,
   update,
   reactions,
+  roles,
   myParticipantId,
   onToggleFlag,
   readOnly,
@@ -96,6 +97,7 @@ function UpdateCard({
   name: string;
   update: UpdateRow | undefined;
   reactions: ReactionRow[];
+  roles: RoleUpdateRow[];
   myParticipantId: string;
   onToggleFlag: (updateId: string, fieldKey: string) => void;
   readOnly: boolean;
@@ -107,7 +109,7 @@ function UpdateCard({
       ? undefined
       : ({ "--arrive-delay": `${enterDelayMs}ms` } as CSSProperties);
 
-  if (!update || !isShown(update)) {
+  if (!update || !isShown(update, roles.length > 0)) {
     return (
       <article
         style={arriveStyle}
@@ -145,14 +147,6 @@ function UpdateCard({
     icon?: ReactNode;
     upvoteKey?: string;
   }[] = [
-    {
-      label: "Offers accepted",
-      value: update.offers_closed ? formatOffers(update.offers_closed, update.offers_closed_note) : null,
-    },
-    {
-      label: "Offers extended",
-      value: update.offers_made ? formatOffers(update.offers_made, update.offers_made_note) : null,
-    },
     { label: "Wins", value: update.wins },
     { label: "New roles opened", value: update.roles_opened },
     {
@@ -169,6 +163,7 @@ function UpdateCard({
     },
   ];
   const filled = rows.filter((row) => isMeaningful(row.value));
+  const hasAnything = filled.length > 0 || roles.length > 0;
 
   return (
     <article
@@ -183,10 +178,39 @@ function UpdateCard({
         </p>
       )}
 
-      {filled.length === 0 ? (
+      {!hasAnything ? (
         <p className="mt-2 text-base text-grafite dark:text-marmol/80">Nothing this week.</p>
       ) : (
         <div className="mt-4 flex flex-col gap-4">
+          {roles.length > 0 && (
+            <div>
+              <p className="flex min-h-8 items-center text-sm font-semibold text-grafite dark:text-marmol/80">
+                Open roles
+              </p>
+              <ul className="flex flex-col gap-3">
+                {roles.map((role) => (
+                  <li key={role.id} className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-base text-ardesia [overflow-wrap:anywhere] dark:text-marmol">
+                        {role.role_title}
+                      </p>
+                      <p className="flex flex-wrap items-center gap-x-2 text-sm text-grafite dark:text-marmol/80">
+                        <RoleStatusBadge status={role.status} />
+                        {role.note && <span className="[overflow-wrap:anywhere]">{role.note}</span>}
+                      </p>
+                    </div>
+                    {role.status === "stalled" && (
+                      <UpvoteButton
+                        label="Stalled role"
+                        subject={name}
+                        {...upvote(roleFieldKey(role.notion_page_id))}
+                      />
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {filled.map((row) => (
             <Field
               key={row.label}

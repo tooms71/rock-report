@@ -16,6 +16,7 @@ import {
   type AgendaUpdate,
   type DiscussionItem,
 } from "@/lib/agenda";
+import type { RoleUpdateRow } from "@/lib/roleStatus";
 
 // The meeting's agenda, in the order the room works through it: celebrate (wins and
 // offers), read out the new roles, then the two lists the team votes on: the hive mind,
@@ -29,16 +30,18 @@ export function AgendaPanel({
   closed = false,
   onToggleDiscussed,
   animate = false,
+  roleUpdates = [],
 }: {
   participants: AgendaParticipant[];
   updates: AgendaUpdate[];
   reactions: ReactionRow[];
+  roleUpdates?: RoleUpdateRow[];
   canMarkDiscussed?: boolean;
   closed?: boolean;
   onToggleDiscussed?: (updateId: string, fieldKey: string) => void;
   animate?: boolean;
 }) {
-  const agenda = buildAgenda(participants, updates, reactions);
+  const agenda = buildAgenda(participants, updates, reactions, roleUpdates);
   const celebrating =
     agenda.wins.length + agenda.offersAccepted.length + agenda.offersExtended.length > 0;
 

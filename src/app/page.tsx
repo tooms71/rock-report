@@ -18,6 +18,8 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 import { CopyButton } from "@/components/CopyButton";
 import { OpenRoles } from "@/components/OpenRoles";
 import { SubmittedSummary } from "@/components/SubmittedSummary";
+import { RoleUpdates } from "@/components/RoleUpdates";
+import type { RoleUpdateRow } from "@/lib/roleStatus";
 import { buildMeetingNotes } from "@/lib/summary";
 import { buildAgenda } from "@/lib/agenda";
 import { isShown } from "@/lib/updates";
@@ -87,6 +89,9 @@ export default function Home() {
   const [myUpdate, setMyUpdate] = useState<UpdateRow | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [reactions, setReactions] = useState<ReactionRow[]>([]);
+  // What people tapped for their open roles this week (offers extended or accepted,
+  // stalled, on track).
+  const [roleUpdates, setRoleUpdates] = useState<RoleUpdateRow[]>([]);
   // Bumped whenever I change something, so a refresh that was already in flight can't
   // overwrite my change with older data.
   const mutationVersion = useRef(0);
@@ -240,6 +245,42 @@ export default function Home() {
     };
   }, [session?.id]);
 
+  // Load this week's role updates, then keep them live.
+  useEffect(() => {
+    if (!session) return;
+    const sessionId = session.id;
+    let active = true;
+    supabase
+      .from("role_updates")
+      .select("*")
+      .eq("session_id", sessionId)
+      .then(({ data }) => {
+        if (active && data) setRoleUpdates(data as RoleUpdateRow[]);
+      });
+    const channel = supabase
+      .channel(`role-updates-${sessionId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "role_updates", filter: `session_id=eq.${sessionId}` },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            const oldRow = payload.old as { id: string };
+            setRoleUpdates((prev) => prev.filter((r) => r.id !== oldRow.id));
+          } else {
+            const row = payload.new as RoleUpdateRow;
+            setRoleUpdates((prev) =>
+              prev.some((r) => r.id === row.id) ? prev.map((r) => (r.id === row.id ? row : r)) : [...prev, row]
+            );
+          }
+        }
+      )
+      .subscribe();
+    return () => {
+      active = false;
+      supabase.removeChannel(channel);
+    };
+  }, [session?.id]);
+
   // Load this session's reactions (including red flags), then keep them live.
   useEffect(() => {
     if (!session) return;
@@ -352,7 +393,7 @@ export default function Home() {
     async function refresh() {
       if (document.hidden) return;
       const version = mutationVersion.current;
-      const [s, p, u, r] = await Promise.all([
+      const [s, p, u, r, ro] = await Promise.all([
         supabase.from("sessions").select("*").eq("id", sessionId).maybeSingle(),
         supabase
           .from("participants")
@@ -361,6 +402,7 @@ export default function Home() {
           .order("joined_at", { ascending: true }),
         supabase.from("updates").select("*").eq("session_id", sessionId),
         supabase.from("reactions").select("*").eq("session_id", sessionId),
+        supabase.from("role_updates").select("*").eq("session_id", sessionId),
       ]);
       // If I changed something while this was in flight, my change is newer than this data.
       if (!active || version !== mutationVersion.current) return;
@@ -387,6 +429,9 @@ export default function Home() {
       }
       if (u.data) setAllUpdates((prev) => (sameJson(prev, u.data) ? prev : (u.data as UpdateRow[])));
       if (r.data) setReactions((prev) => (sameJson(prev, r.data) ? prev : (r.data as ReactionRow[])));
+      if (ro.data) {
+        setRoleUpdates((prev) => (sameJson(prev, ro.data) ? prev : (ro.data as RoleUpdateRow[])));
+      }
     }
 
     const interval = setInterval(refresh, POLL_MS);
@@ -782,7 +827,10 @@ export default function Home() {
   const iHaveSubmitted = !!myUpdate?.submitted_at;
   const lastToSubmit = participants.length > 1 && !iHaveSubmitted && stillWriting === 1;
   // ...versus everyone with something to show once the reveal happens (drafts count).
-  const updatesInCount = allUpdates.filter(isShown).length;
+  const updatesInCount = allUpdates.filter((u) =>
+    isShown(u, roleUpdates.some((r) => r.participant_id === u.participant_id))
+  ).length;
+  const myRoleUpdates = roleUpdates.filter((r) => r.participant_id === me?.id);
   const notSubmittedNames = participants
     .filter((p) => !allUpdates.some((u) => u.participant_id === p.id && u.submitted_at))
     .map((p) => p.display_name);
@@ -810,7 +858,7 @@ export default function Home() {
   const inAgenda = session?.phase === "agenda";
   const isClosed = session?.phase === "closed";
   // Counts come from the agenda itself, so they match what the room sees.
-  const agendaItems = buildAgenda(participants, allUpdates, reactions).discussion;
+  const agendaItems = buildAgenda(participants, allUpdates, reactions, roleUpdates).discussion;
   const flaggedTopicCount = agendaItems.length;
   const discussedCount = agendaItems.filter((item) => item.discussed).length;
   const leftToDiscuss = flaggedTopicCount - discussedCount;
@@ -1015,6 +1063,26 @@ export default function Home() {
             </ul>
           </div>
 
+          {myUpdate && !myUpdate.submitted_at && me && (
+            <RoleUpdates
+              sessionId={session.id}
+              participantId={me.id}
+              roleUpdates={roleUpdates}
+              onSaved={(row) => {
+                bump();
+                setRoleUpdates((prev) =>
+                  prev.some((r) => r.id === row.id)
+                    ? prev.map((r) => (r.id === row.id ? row : r))
+                    : [...prev.filter((r) => r.notion_page_id !== row.notion_page_id || r.participant_id !== row.participant_id), row]
+                );
+              }}
+              onCleared={(id) => {
+                bump();
+                setRoleUpdates((prev) => prev.filter((r) => r.id !== id));
+              }}
+            />
+          )}
+
           {myUpdate && !myUpdate.submitted_at && (
             <WritingForm
               initialFields={myUpdate}
@@ -1022,6 +1090,7 @@ export default function Home() {
               onSubmit={handleSubmitUpdate}
               submitting={busy}
               lastToSubmit={lastToSubmit}
+              hasRoleUpdates={myRoleUpdates.length > 0}
             />
           )}
 
@@ -1036,7 +1105,7 @@ export default function Home() {
                   : "Revealing now…"}
                 </span>
               </p>
-              <SubmittedSummary fields={myUpdate} />
+              <SubmittedSummary fields={myUpdate} roles={myRoleUpdates} />
               <button
                 type="button"
                 onClick={handleUnsubmit}
@@ -1123,6 +1192,7 @@ export default function Home() {
                         participants,
                         updates: allUpdates,
                         reactions,
+                        roleUpdates,
                       })
                     }
                   />
@@ -1141,6 +1211,7 @@ export default function Home() {
               participants={participants}
               updates={allUpdates}
               reactions={reactions}
+              roleUpdates={roleUpdates}
               canMarkDiscussed={isFacilitator && inAgenda}
               closed={isClosed}
               onToggleDiscussed={handleToggleDiscussed}
@@ -1181,6 +1252,7 @@ export default function Home() {
                 participants={participants}
                 updates={allUpdates}
                 reactions={reactions}
+                roleUpdates={roleUpdates}
                 myParticipantId={me.id}
                 onToggleFlag={handleToggleFlag}
                 readOnly={isViewer}
@@ -1202,6 +1274,7 @@ export default function Home() {
                   participants={participants}
                   updates={allUpdates}
                   reactions={reactions}
+                  roleUpdates={roleUpdates}
                   myParticipantId={me.id}
                   onToggleFlag={handleToggleFlag}
                   readOnly

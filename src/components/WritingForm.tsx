@@ -5,10 +5,6 @@ import { inputClass } from "@/lib/ui";
 import { UPDATE_FIELD_KEYS } from "@/lib/updates";
 
 export type UpdateFields = {
-  offers_made: number | null;
-  offers_made_note: string | null;
-  offers_closed: number | null;
-  offers_closed_note: string | null;
   roles_opened: string | null;
   wins: string | null;
   need_brain_on: string | null; // the hive mind box
@@ -35,12 +31,15 @@ export function WritingForm({
   onSubmit,
   submitting,
   lastToSubmit = false,
+  hasRoleUpdates = false,
 }: {
   initialFields: UpdateFields;
   onAutosave: (fields: UpdateFields) => Promise<boolean>;
   onSubmit: (fields: UpdateFields) => void;
   submitting: boolean;
   lastToSubmit?: boolean;
+  // Role buttons tapped above the form count as an answer, so an empty text form is fine.
+  hasRoleUpdates?: boolean;
 }) {
   const [fields, setFields] = useState<UpdateFields>(() => pickFields(initialFields));
   const fieldsRef = useRef(fields);
@@ -94,7 +93,7 @@ export function WritingForm({
     const isEmpty = FIELD_KEYS.every(
       (key) => fieldsRef.current[key] === null || fieldsRef.current[key] === ""
     );
-    if (isEmpty && !confirmEmpty) {
+    if (isEmpty && !hasRoleUpdates && !confirmEmpty) {
       setConfirmEmpty(true);
       return;
     }
@@ -118,23 +117,6 @@ export function WritingForm({
       <p className="text-sm text-grafite dark:text-marmol/80">
         Leave anything that doesn&apos;t apply to you blank.
       </p>
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <NumberField
-          label="Offers accepted"
-          value={fields.offers_closed}
-          note={fields.offers_closed_note}
-          onValueChange={(v) => updateField("offers_closed", v)}
-          onNoteChange={(v) => updateField("offers_closed_note", v)}
-        />
-        <NumberField
-          label="Offers extended"
-          value={fields.offers_made}
-          note={fields.offers_made_note}
-          onValueChange={(v) => updateField("offers_made", v)}
-          onNoteChange={(v) => updateField("offers_made_note", v)}
-        />
-      </div>
 
       <TextField
         label="Wins to celebrate"
@@ -204,48 +186,6 @@ export function WritingForm({
 }
 
 const labelClass = "text-sm font-semibold text-ardesia dark:text-marmol";
-
-function NumberField({
-  label,
-  value,
-  note,
-  onValueChange,
-  onNoteChange,
-}: {
-  label: string;
-  value: number | null;
-  note: string | null;
-  onValueChange: (value: number | null) => void;
-  onNoteChange: (value: string | null) => void;
-}) {
-  const id = useId();
-  return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={id} className={labelClass}>
-        {label}
-      </label>
-      <input
-        id={id}
-        type="number"
-        inputMode="numeric"
-        min={0}
-        value={value ?? ""}
-        onChange={(e) =>
-          onValueChange(e.target.value === "" ? null : Number(e.target.value))
-        }
-        className={`${inputClass} tabular-nums`}
-      />
-      <input
-        type="text"
-        aria-label={`${label}: client and role`}
-        placeholder="List client and role"
-        value={note ?? ""}
-        onChange={(e) => onNoteChange(e.target.value || null)}
-        className={`${inputClass} py-1.5 text-sm`}
-      />
-    </div>
-  );
-}
 
 function TextField({
   label,

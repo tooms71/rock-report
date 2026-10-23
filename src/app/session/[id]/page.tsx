@@ -10,6 +10,7 @@ import { formatWeekOf } from "@/lib/date";
 import { CopyButton } from "@/components/CopyButton";
 import { buildMeetingNotes } from "@/lib/summary";
 import { formatSessionSummary, summarizeSession } from "@/lib/agenda";
+import type { RoleUpdateRow } from "@/lib/roleStatus";
 import type { UpdateFields } from "@/components/WritingForm";
 
 type SessionRow = {
@@ -38,6 +39,7 @@ export default function SessionDetailPage() {
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
   const [updates, setUpdates] = useState<UpdateRow[]>([]);
   const [reactions, setReactions] = useState<ReactionRow[]>([]);
+  const [roleUpdates, setRoleUpdates] = useState<RoleUpdateRow[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -61,6 +63,7 @@ export default function SessionDetailPage() {
         { data: participantsData },
         { data: updatesData },
         { data: reactionsData },
+        { data: roleUpdatesData },
       ] = await Promise.all([
         supabase
           .from("participants")
@@ -69,12 +72,14 @@ export default function SessionDetailPage() {
           .order("joined_at", { ascending: true }),
         supabase.from("updates").select("*").eq("session_id", sessionId),
         supabase.from("reactions").select("*").eq("session_id", sessionId),
+        supabase.from("role_updates").select("*").eq("session_id", sessionId),
       ]);
 
       if (!active) return;
       setParticipants(participantsData ?? []);
       setUpdates(updatesData ?? []);
       setReactions(reactionsData ?? []);
+      setRoleUpdates((roleUpdatesData ?? []) as RoleUpdateRow[]);
       setLoading(false);
     }
 
@@ -113,7 +118,7 @@ export default function SessionDetailPage() {
             </h1>
             <p className="text-sm text-grafite dark:text-marmol/80">
               {session.phase === "closed" ? "Closed" : "Revealed"} ·{" "}
-              {formatSessionSummary(summarizeSession(updates, reactions))}
+              {formatSessionSummary(summarizeSession(updates, reactions, roleUpdates))}
             </p>
           </div>
           <Link href="/archive" className="text-sm font-semibold text-ember-ink">
@@ -132,10 +137,11 @@ export default function SessionDetailPage() {
             participants,
             updates,
             reactions,
+            roleUpdates,
           })
         }
       />
-      <AgendaPanel participants={participants} updates={updates} reactions={reactions} closed={session.phase === "closed"} />
+      <AgendaPanel participants={participants} updates={updates} reactions={reactions} roleUpdates={roleUpdates} closed={session.phase === "closed"} />
       <details className="group">
         <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 font-heading text-2xl font-bold text-ardesia dark:text-marmol [&::-webkit-details-marker]:hidden">
           Everyone&apos;s updates
@@ -149,6 +155,7 @@ export default function SessionDetailPage() {
             participants={participants}
             updates={updates}
             reactions={reactions}
+            roleUpdates={roleUpdates}
             myParticipantId=""
             onToggleFlag={() => {}}
             readOnly

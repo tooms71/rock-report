@@ -10,6 +10,7 @@ import {
   type AgendaUpdate,
 } from "@/lib/agenda";
 import type { ReactionRow } from "@/components/RevealGrid";
+import type { RoleUpdateRow } from "@/lib/roleStatus";
 
 type SessionRow = {
   id: string;
@@ -41,9 +42,10 @@ export default function ArchivePage() {
       setSessions(data ?? []);
 
       // One-line "what happened" per revealed or closed week.
-      const [{ data: updates }, { data: reactions }] = await Promise.all([
+      const [{ data: updates }, { data: reactions }, { data: roleUpdates }] = await Promise.all([
         supabase.from("updates").select("*"),
         supabase.from("reactions").select("*"),
+        supabase.from("role_updates").select("*"),
       ]);
       if (!active) return;
       const result: Record<string, string> = {};
@@ -56,7 +58,8 @@ export default function ArchivePage() {
             ),
             ((reactions ?? []) as (ReactionRow & { session_id: string })[]).filter(
               (r) => r.session_id === s.id
-            )
+            ),
+            ((roleUpdates ?? []) as RoleUpdateRow[]).filter((r) => r.session_id === s.id)
           )
         );
       }

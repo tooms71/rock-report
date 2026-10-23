@@ -6,6 +6,7 @@ import {
   type AgendaUpdate,
   type DiscussionItem,
 } from "@/lib/agenda";
+import type { RoleUpdateRow } from "@/lib/roleStatus";
 
 const oneLine = (text: string) =>
   text
@@ -21,13 +22,15 @@ export function buildMeetingNotes({
   participants,
   updates,
   reactions,
+  roleUpdates = [],
 }: {
   weekLabel: string;
   participants: AgendaParticipant[];
   updates: AgendaUpdate[];
   reactions: ReactionRow[];
+  roleUpdates?: RoleUpdateRow[];
 }): string {
-  const agenda = buildAgenda(participants, updates, reactions);
+  const agenda = buildAgenda(participants, updates, reactions, roleUpdates);
   const sections: string[] = [`Rock Report: week of ${weekLabel}`];
 
   const bullets = (heading: string, items: AgendaInfoItem[]) =>

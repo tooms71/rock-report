@@ -1,10 +1,6 @@
 import type { UpdateFields } from "@/components/WritingForm";
 
 export const UPDATE_FIELD_KEYS: (keyof UpdateFields)[] = [
-  "offers_made",
-  "offers_made_note",
-  "offers_closed",
-  "offers_closed_note",
   "roles_opened",
   "wins",
   // The hive mind box. The column is older than that name; see src/lib/fields.ts.
@@ -24,9 +20,10 @@ export function hasContent(update: Partial<UpdateFields>): boolean {
 // An update is shown if it was submitted, or if it holds saved text even though the
 // person never pressed Submit (time ran out). Nobody's work disappears at 0:00.
 export function isShown(
-  update: (Partial<UpdateFields> & { submitted_at: string | null }) | undefined
+  update: (Partial<UpdateFields> & { submitted_at: string | null }) | undefined,
+  hasRoleUpdates = false
 ): boolean {
-  return !!update && (!!update.submitted_at || hasContent(update));
+  return !!update && (!!update.submitted_at || hasContent(update) || hasRoleUpdates);
 }
 
 // People often type "none" or "n/a" instead of leaving a box empty. Those mean "nothing

@@ -105,3 +105,24 @@ export function SparkIcon({ className }: IconProps) {
     </Svg>
   );
 }
+
+// Stalled: an exclamation mark in a circle.
+export function AlertIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7.5v5.5" />
+      <path d="M12 16.5v.01" />
+    </Svg>
+  );
+}
+
+// Offer extended: a paper plane, on its way.
+export function SendIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M20.5 4L3.5 11l6.5 2.5L12.5 20z" />
+      <path d="M10 13.5L20.5 4" />
+    </Svg>
+  );
+}
