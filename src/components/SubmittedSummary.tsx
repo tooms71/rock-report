@@ -15,7 +15,7 @@ export function SubmittedSummary({
     { label: "Wins", value: fields.wins },
     { label: "New roles opened", value: fields.roles_opened },
     { label: "Hive mind", value: fields.need_brain_on },
-    { label: "Cool or valuable to share", value: fields.anything_else },
+    { label: "Worth sharing", value: fields.anything_else },
   ].filter((row): row is { label: string; value: string } => !!row.value);
 
   return (

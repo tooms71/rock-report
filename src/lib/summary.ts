@@ -67,7 +67,7 @@ export function buildMeetingNotes({
   }
   if (agenda.rolesOpened.length > 0) sections.push(bullets("New roles opened", agenda.rolesOpened));
   if (agenda.hiveMind.length > 0) sections.push(numbered("Hive mind", agenda.hiveMind));
-  if (agenda.cool.length > 0) sections.push(numbered("Cool or valuable to share", agenda.cool));
+  if (agenda.cool.length > 0) sections.push(numbered("Worth sharing", agenda.cool));
 
   return sections.join("\n\n");
 }

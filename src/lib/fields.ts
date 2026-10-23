@@ -6,5 +6,5 @@ export const COOL_KEY = "anything_else";
 
 export const UPVOTE_FIELDS = [
   { key: HIVE_MIND_KEY, label: "Hive mind" },
-  { key: COOL_KEY, label: "Cool or valuable to share" },
+  { key: COOL_KEY, label: "Worth sharing" },
 ] as const;

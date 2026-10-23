@@ -1244,7 +1244,7 @@ export default function Home() {
               {!isViewer && (
                 <p className="-mt-2 text-base text-grafite dark:text-marmol/80">
                   Read, then upvote what the team should talk about. Hive mind requests are
-                  always on the agenda; anything cool or valuable to share joins it once it has an upvote.
+                  always on the agenda; anything worth sharing joins it once it has an upvote.
                   {!isFacilitator && ` ${facilitatorName} builds the agenda when everyone is ready.`}
                 </p>
               )}

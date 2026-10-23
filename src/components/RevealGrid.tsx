@@ -156,7 +156,7 @@ function UpdateCard({
       upvoteKey: HIVE_MIND_KEY,
     },
     {
-      label: "Cool or valuable to share",
+      label: "Worth sharing",
       value: update.anything_else,
       icon: <SparkIcon className="size-4 shrink-0 text-ember-ink" />,
       upvoteKey: COOL_KEY,
