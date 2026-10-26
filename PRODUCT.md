@@ -14,17 +14,17 @@ Each person uses it on their own screen, mostly on a laptop. It also has to read
 
 ## Product Purpose
 
-Rock Report replaces a status meeting's round-robin with a short, timeboxed written update. Everyone writes during a shared 3-minute timer, then all updates are revealed together. The reveal becomes the meeting agenda: offers closed and new roles opened are listed automatically, and anything a teammate flags is collected as "flagged for discussion". Past weeks are kept in an archive so someone who was away can catch up by reading.
+Rock Report replaces a status meeting's round-robin with a short written update. Everyone writes any time before the meeting; when the facilitator starts the meeting, all updates are revealed together. The reveal becomes the meeting agenda: offers closed and new roles opened are listed automatically, and anything a teammate flags is collected as "flagged for discussion". Past weeks are kept in an archive so someone who was away can catch up by reading.
 
 Success: the team finishes updates quickly, the discussion goes straight to what actually needs talking about, and nobody who missed a week is lost.
 
 ## Positioning
 
-A live, synchronous ritual rather than an async form or a feed. The shared timer and simultaneous reveal are what make it a team moment, and the output is an agenda rather than a pile of posts. A generic survey or standup bot would not do the "everyone writes, then everyone sees at once" moment.
+Written in advance, read together. The simultaneous reveal at the start of the meeting is what makes it a team moment, and the output is an agenda rather than a pile of posts. A generic survey or standup bot would not do the "everyone writes, then everyone sees at once" moment.
 
 ## Operating Context
 
-- Weekly, at the team's meeting time. Someone opens the app and creates that week's session; that person is the facilitator and controls Start, Reveal now, and Close.
+- Weekly. The week's session opens the first time anyone visits; people write whenever they like. Bec is always the facilitator (matched by sign-in email, list in src/lib/facilitators.ts) and controls Start the meeting, Build the agenda and Close.
 - No scheduling or reminders in the app.
 - Data is stored in Supabase (free tier, which pauses after about a week of inactivity and must be restored from the dashboard). Hosting on Vercel is planned but not yet done.
 
@@ -61,3 +61,12 @@ A live, synchronous ritual rather than an async form or a feed. The shared timer
 - Dark mode must always be available and fully readable (contrast was a real problem earlier in this project).
 - Text and cards must stay legible when screen-shared.
 - Primarily a laptop experience; phone layouts should still work but are secondary.
+
+## Since 2026-10-26 (after the first whole-team round)
+
+- Phases: writing (open all week, no timer) -> reveal (read, upvote, react) -> agenda -> closed.
+- The facilitator has a box for her own agenda topics (one per line); they sit between New roles opened and the hive mind.
+- Stalled roles join the hive mind only if their owner taps "Discuss with the group".
+- "Anomalies and trends" is a new box; like "Worth sharing", it reaches the agenda only once upvoted.
+- Wins can get emoji reactions and a collapsed comment thread; both are in the copied meeting notes.
+- Not built yet: upvoting early once everyone has submitted (needs the full team list).
