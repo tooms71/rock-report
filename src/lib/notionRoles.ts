@@ -33,8 +33,33 @@ export function findPersonId(directory: NotionPage[], email: string): string | n
   return directory.find((page) => emailOf(page) === wanted)?.id ?? null;
 }
 
+// Client page id -> client name, from the Clients database.
+export function clientNames(clients: NotionPage[]): Map<string, string> {
+  const names = new Map<string, string>();
+  for (const page of clients) {
+    const titleProperty = Object.values(page.properties).find((p) => p.type === "title");
+    const name = plainText(titleProperty?.title);
+    if (name) names.set(page.id, name);
+  }
+  return names;
+}
+
+// "Senior Engineer" at client "Acme" reads "Senior Engineer (Acme)". Someone with three
+// engineer roles for different clients needs the client to tell them apart. Titles that
+// already name the client are left alone.
+export function withClient(title: string, clients: string[]): string {
+  const named = (client: string) =>
+    new RegExp(`(^|[^\\p{L}\\p{N}])${client.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|[^\\p{L}\\p{N}])`, "iu").test(title);
+  const missing = clients.filter((c) => !named(c));
+  return missing.length > 0 ? `${title} (${missing.join(", ")})` : title;
+}
+
 // Open roles where this person is one of the talent partners.
-export function rolesFor(openRoles: NotionPage[], personId: string): MyRole[] {
+export function rolesFor(
+  openRoles: NotionPage[],
+  personId: string,
+  clients: Map<string, string> = new Map()
+): MyRole[] {
   return openRoles
     .filter((page) => {
       const relation = findProperty(page, "Talent Partner")?.relation;
@@ -42,9 +67,13 @@ export function rolesFor(openRoles: NotionPage[], personId: string): MyRole[] {
     })
     .map((page) => {
       const titleProperty = Object.values(page.properties).find((p) => p.type === "title");
+      const clientRelation = findProperty(page, "Client")?.relation;
+      const clientList = Array.isArray(clientRelation)
+        ? clientRelation.flatMap((r: { id: string }) => clients.get(r.id) ?? [])
+        : [];
       return {
         id: page.id,
-        title: plainText(titleProperty?.title) || "Untitled role",
+        title: withClient(plainText(titleProperty?.title) || "Untitled role", clientList),
         // Only ever link to real web addresses.
         url: typeof page.url === "string" && /^https:\/\//i.test(page.url) ? page.url : null,
       };
