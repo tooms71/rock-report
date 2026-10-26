@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CommentIcon } from "@/components/Icons";
+import { ChevronIcon, CommentIcon } from "@/components/Icons";
 import type { ReactionRow } from "@/components/RevealGrid";
 import { MAX_COMMENT_LENGTH, WIN_EMOJIS, WINS_KEY, type CommentRow } from "@/lib/social";
 import { inputClass } from "@/lib/ui";
@@ -27,7 +27,8 @@ export function WinReactions({
   reactions: ReactionRow[];
   social: Social;
 }) {
-  const [composing, setComposing] = useState(false);
+  // Comments stay folded until someone opens them, so the agenda stays short.
+  const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
 
@@ -45,7 +46,8 @@ export function WinReactions({
     return { emoji, label, count: rows.length, byMe: rows.some((r) => r.participant_id === social.myParticipantId) };
   }).filter((chip) => canReact || chip.count > 0);
 
-  if (chips.length === 0 && comments.length === 0 && !canComment) return null;
+  const showComments = canComment || comments.length > 0;
+  if (chips.length === 0 && !showComments) return null;
 
   async function send() {
     const body = draft.trim();
@@ -53,10 +55,7 @@ export function WinReactions({
     setSending(true);
     const ok = await social.onAddComment(updateId, body);
     setSending(false);
-    if (ok) {
-      setDraft("");
-      setComposing(false);
-    }
+    if (ok) setDraft("");
   }
 
   return (
@@ -90,59 +89,66 @@ export function WinReactions({
             </span>
           )
         )}
-        {canComment && !composing && (
+        {showComments && (
           <button
             type="button"
-            onClick={() => setComposing(true)}
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
             className="inline-flex min-h-8 items-center gap-1.5 rounded-full px-2.5 text-sm font-semibold text-grafite transition hover:text-ember-ink max-sm:min-h-11 dark:text-marmol/80"
           >
             <CommentIcon className="size-4" />
-            Comment
+            {comments.length === 0
+              ? "Comment"
+              : `${comments.length} ${comments.length === 1 ? "comment" : "comments"}`}
+            <ChevronIcon className="size-4" open={open} />
           </button>
         )}
       </div>
 
-      {comments.length > 0 && (
-        <ul className="flex flex-col gap-1" aria-label="Comments">
-          {comments.map((c) => (
-            <li
-              key={c.id}
-              className="text-sm text-ardesia [overflow-wrap:anywhere] dark:text-marmol"
+      {showComments && open && (
+        <div className="flex flex-col gap-2">
+          {comments.length > 0 && (
+            <ul className="flex flex-col gap-1" aria-label="Comments">
+              {comments.map((c) => (
+                <li
+                  key={c.id}
+                  className="text-sm text-ardesia [overflow-wrap:anywhere] dark:text-marmol"
+                >
+                  <span className="font-semibold">{social.nameOf(c.participant_id)}</span>
+                  <span className="text-grafite dark:text-marmol/70"> · </span>
+                  {c.body}
+                </li>
+              ))}
+            </ul>
+          )}
+          {canComment && (
+            <form
+              className="flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void send();
+              }}
             >
-              <span className="font-semibold">{social.nameOf(c.participant_id)}</span>
-              <span className="text-grafite dark:text-marmol/70"> · </span>
-              {c.body}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {canComment && composing && (
-        <form
-          className="flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void send();
-          }}
-        >
-          <input
-            type="text"
-            aria-label="Add a comment"
-            placeholder="Add a comment"
-            autoFocus
-            maxLength={MAX_COMMENT_LENGTH}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            className={`min-w-0 flex-1 ${inputClass}`}
-          />
-          <button
-            type="submit"
-            disabled={sending || draft.trim() === ""}
-            className="min-h-11 shrink-0 rounded-lg bg-ember-fill px-3 text-sm font-semibold text-white transition disabled:opacity-50"
-          >
-            Post
-          </button>
-        </form>
+              <input
+                type="text"
+                aria-label="Add a comment"
+                placeholder="Add a comment"
+                autoFocus
+                maxLength={MAX_COMMENT_LENGTH}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                className={`min-w-0 flex-1 ${inputClass}`}
+              />
+              <button
+                type="submit"
+                disabled={sending || draft.trim() === ""}
+                className="min-h-11 shrink-0 rounded-lg bg-ember-fill px-3 text-sm font-semibold text-white transition disabled:opacity-50"
+              >
+                Post
+              </button>
+            </form>
+          )}
+        </div>
       )}
     </div>
   );

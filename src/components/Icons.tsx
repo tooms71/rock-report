@@ -155,3 +155,12 @@ export function CommentIcon({ className }: IconProps) {
     </Svg>
   );
 }
+
+// Chevron: points down, turns up when the section it controls is open.
+export function ChevronIcon({ className, open = false }: IconProps & { open?: boolean }) {
+  return (
+    <Svg className={`${className ?? ""} transition-transform ${open ? "rotate-180" : ""}`}>
+      <path d="M6 9.5l6 6 6-6" />
+    </Svg>
+  );
+}
