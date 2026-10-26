@@ -207,7 +207,8 @@ function UpdateCard({
               </p>
               <ul className="flex flex-col gap-3">
                 {roles.map((role) => (
-                  <li key={role.id} className="flex flex-wrap items-start justify-between gap-x-2">
+                  <li key={role.id}>
+                    <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-base text-ardesia [overflow-wrap:anywhere] dark:text-marmol">
                         {role.role_title}
@@ -227,10 +228,11 @@ function UpdateCard({
                         {...upvote(roleFieldKey(role.notion_page_id))}
                       />
                     )}
+                    </div>
                     {social &&
                       (role.status === "offer_accepted" ||
                         (role.status === "stalled" && role.discuss)) && (
-                        <div className="w-full">
+                        <div>
                           <Reactions
                             updateId={update.id}
                             fieldKey={roleFieldKey(role.notion_page_id)}
