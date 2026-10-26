@@ -206,39 +206,30 @@ function TopicItem({
         {index + 1}.
       </span>
       <div className="min-w-0 flex-1">
-        {item.discussed ? (
-          // Done topics fold to one dimmed line; the text is one tap away.
-          <details className="group">
-            <summary className="flex min-h-9 cursor-pointer list-none flex-wrap items-center gap-x-2 text-base font-semibold text-grafite dark:text-marmol/75 [&::-webkit-details-marker]:hidden">
-              <CheckIcon className="size-4 shrink-0" />
-              <span>
-                {item.name}
-                <span className="sr-only">, discussed</span>
-              </span>
-              <span className="text-sm font-normal text-ember-ink underline underline-offset-2">
-                <span className="group-open:hidden">Show</span>
-                <span className="hidden group-open:inline">Hide</span>
-              </span>
-            </summary>
-            <p className="whitespace-pre-line text-base [overflow-wrap:anywhere] text-grafite dark:text-marmol/75">
-              {item.value}
-            </p>
-          </details>
-        ) : (
-          <>
-            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-base font-semibold text-ardesia dark:text-marmol">
-              <span>{item.name}</span>
-              {item.voteCount > 0 && <VoteCount count={item.voteCount} />}
-            </p>
-            <ClampedText
-              lines={5}
-              label={`${item.name}’s ${item.label}`}
-              className="whitespace-pre-line text-lg [overflow-wrap:anywhere] text-ardesia sm:text-xl dark:text-marmol"
-            >
-              {item.value}
-            </ClampedText>
-          </>
-        )}
+        {/* A discussed topic stays in place with its text; it just reads as done. */}
+        <p
+          className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-base font-semibold ${
+            item.discussed ? "text-grafite dark:text-marmol/75" : "text-ardesia dark:text-marmol"
+          }`}
+        >
+          <span>{item.name}</span>
+          {item.voteCount > 0 && <VoteCount count={item.voteCount} />}
+          {item.discussed && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-moss-ink/15 px-2 py-0.5 text-sm font-semibold text-moss-ink">
+              <CheckIcon className="size-3.5" />
+              Discussed
+            </span>
+          )}
+        </p>
+        <ClampedText
+          lines={5}
+          label={`${item.name}’s ${item.label}`}
+          className={`whitespace-pre-line text-lg [overflow-wrap:anywhere] sm:text-xl ${
+            item.discussed ? "text-grafite dark:text-marmol/75" : "text-ardesia dark:text-marmol"
+          }`}
+        >
+          {item.value}
+        </ClampedText>
         {canMarkDiscussed && onToggleDiscussed && (
           <div className="mt-2">
             <button
