@@ -8,7 +8,9 @@ export type UpdateFields = {
   roles_opened: string | null;
   wins: string | null;
   need_brain_on: string | null; // the hive mind box
-  anything_else: string | null;
+  anomalies: string | null; // anomalies and trends
+  anything_else: string | null; // worth sharing
+  facilitator_topics: string | null; // the facilitator's own agenda topics
 };
 
 const FIELD_KEYS = UPDATE_FIELD_KEYS;
@@ -30,14 +32,15 @@ export function WritingForm({
   onAutosave,
   onSubmit,
   submitting,
-  lastToSubmit = false,
+  isFacilitator = false,
   hasRoleUpdates = false,
 }: {
   initialFields: UpdateFields;
   onAutosave: (fields: UpdateFields) => Promise<boolean>;
   onSubmit: (fields: UpdateFields) => void;
   submitting: boolean;
-  lastToSubmit?: boolean;
+  // The facilitator gets a box of her own for topics she adds to the agenda.
+  isFacilitator?: boolean;
   // Role buttons tapped above the form count as an answer, so an empty text form is fine.
   hasRoleUpdates?: boolean;
 }) {
@@ -71,7 +74,7 @@ export function WritingForm({
   }
 
   // Never lose what was typed in the last moments: if a save is still pending when
-  // the form goes away (timer ran out) or the tab is hidden, write it out now.
+  // the form goes away (the meeting started) or the tab is hidden, write it out now.
   useEffect(() => {
     function flushIfPending() {
       if (!saveTimer.current) return;
@@ -134,11 +137,29 @@ export function WritingForm({
         rows={2}
       />
 
+      {isFacilitator && (
+        <TextField
+          label="Topics to add to the agenda"
+          hint="One per line. They go on the agenda after new roles, before the hive mind"
+          value={fields.facilitator_topics}
+          onChange={(v) => updateField("facilitator_topics", v)}
+          rows={3}
+        />
+      )}
+
       <TextField
         label="What might you want the hive mind for?"
         hint="Leave blank if nothing. Whatever you write goes on the agenda and the team can upvote it"
         value={fields.need_brain_on}
         onChange={(v) => updateField("need_brain_on", v)}
+        rows={3}
+      />
+
+      <TextField
+        label="Are you seeing any anomalies or trends?"
+        hint="For example comp changes. It joins the agenda if the team upvotes it"
+        value={fields.anomalies}
+        onChange={(v) => updateField("anomalies", v)}
         rows={3}
       />
 
@@ -151,12 +172,6 @@ export function WritingForm({
       />
 
       <div className="flex flex-col gap-2">
-        {lastToSubmit && (
-          <p className="text-sm text-grafite dark:text-marmol/80">
-            You&apos;re the last one still writing, so submitting reveals everyone&apos;s
-            updates right away.
-          </p>
-        )}
         <button
           type="button"
           onClick={handleSubmit}
@@ -174,7 +189,7 @@ export function WritingForm({
               : "text-grafite dark:text-marmol/70"
           }`}
         >
-          {saveState === "idle" && "Saves as you type. Everyone sees it when time's up."}
+          {saveState === "idle" && "Saves as you type. Everyone sees it when the meeting starts."}
           {saveState === "saving" && "Saving…"}
           {saveState === "saved" && "Saved. Keep editing until you submit."}
           {saveState === "error" &&

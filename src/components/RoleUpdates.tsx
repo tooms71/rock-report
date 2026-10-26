@@ -8,6 +8,7 @@ import {
   type RoleStatus,
   type RoleUpdateRow,
 } from "@/lib/roleStatus";
+import { CheckIcon } from "@/components/Icons";
 
 type Loaded =
   | { kind: "loading" }
@@ -88,6 +89,8 @@ export function RoleUpdates({
           role_url: role.url,
           status,
           note: existing?.note ?? null,
+          // Changing status starts over: a role is only discussed if it is stalled and asked for.
+          discuss: false,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "participant_id,notion_page_id" }
@@ -104,6 +107,18 @@ export function RoleUpdates({
     const { data, error } = await supabase
       .from("role_updates")
       .update({ note: value, updated_at: new Date().toISOString() })
+      .eq("id", existing.id)
+      .select()
+      .single();
+    if (error || !data) setSaveError(true);
+    else onSaved(data as RoleUpdateRow);
+  }
+
+  async function toggleDiscuss(existing: RoleUpdateRow) {
+    setSaveError(false);
+    const { data, error } = await supabase
+      .from("role_updates")
+      .update({ discuss: !existing.discuss, updated_at: new Date().toISOString() })
       .eq("id", existing.id)
       .select()
       .single();
@@ -187,11 +202,28 @@ export function RoleUpdates({
                   <input
                     type="text"
                     aria-label={`Note for ${role.title}`}
-                    placeholder="Add a note (optional)"
+                    placeholder={
+                      current.status === "stalled" ? "What's the blocker? (optional)" : "Add a note (optional)"
+                    }
                     defaultValue={current.note ?? ""}
                     onBlur={(e) => void saveNote(current, e.target.value)}
                     className="min-h-11 w-full rounded-lg border border-grafite/40 bg-transparent px-3 text-base text-ardesia placeholder:text-grafite/70 dark:border-white/30 dark:text-marmol"
                   />
+                )}
+                {current?.status === "stalled" && (
+                  <button
+                    type="button"
+                    aria-pressed={current.discuss}
+                    onClick={() => void toggleDiscuss(current)}
+                    className={`inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-lg border px-3 text-sm font-semibold transition ${
+                      current.discuss
+                        ? "border-ember-ink bg-ember-ink/10 text-ember-ink"
+                        : "border-grafite/40 text-ardesia hover:border-ember-ink hover:text-ember-ink dark:border-white/30 dark:text-marmol"
+                    }`}
+                  >
+                    {current.discuss && <CheckIcon className="size-4" />}
+                    {current.discuss ? "On the agenda. Tap to remove" : "Discuss with the group"}
+                  </button>
                 )}
               </li>
             );

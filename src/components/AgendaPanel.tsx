@@ -6,6 +6,8 @@ import {
   OffersIcon,
   RolesIcon,
   SparkIcon,
+  TopicsIcon,
+  TrendIcon,
   UpvoteIcon,
 } from "@/components/Icons";
 import { ClampedText } from "@/components/ClampedText";
@@ -17,10 +19,11 @@ import {
   type DiscussionItem,
 } from "@/lib/agenda";
 import type { RoleUpdateRow } from "@/lib/roleStatus";
+import { WinReactions, type Social } from "@/components/WinReactions";
 
 // The meeting's agenda, in the order the room works through it: celebrate (wins and
-// offers), read out the new roles, then the two lists the team votes on: the hive mind,
-// and anything cool. It leads the page, sets in larger type for a shared screen, and sits
+// offers), read out the new roles, the topics the facilitator added, then the lists the
+// team votes on: the hive mind, anomalies and trends, and what is worth sharing. It leads the page, sets in larger type for a shared screen, and sits
 // on its own raised surface.
 export function AgendaPanel({
   participants,
@@ -31,17 +34,20 @@ export function AgendaPanel({
   onToggleDiscussed,
   animate = false,
   roleUpdates = [],
+  social,
 }: {
   participants: AgendaParticipant[];
   updates: AgendaUpdate[];
   reactions: ReactionRow[];
   roleUpdates?: RoleUpdateRow[];
+  social?: Social;
   canMarkDiscussed?: boolean;
   closed?: boolean;
   onToggleDiscussed?: (updateId: string, fieldKey: string) => void;
   animate?: boolean;
 }) {
   const agenda = buildAgenda(participants, updates, reactions, roleUpdates);
+  const topicAuthors = [...new Set(agenda.facilitatorTopics.map((t) => t.name))];
   const celebrating =
     agenda.wins.length + agenda.offersAccepted.length + agenda.offersExtended.length > 0;
 
@@ -63,7 +69,17 @@ export function AgendaPanel({
           <SectionHeading icon={<OffersIcon className="size-6" />}>Wins and offers</SectionHeading>
           {celebrating ? (
             <div className="mt-3 flex flex-col gap-5">
-              <InfoGroup title="Wins" items={agenda.wins} />
+              <InfoGroup
+                title="Wins"
+                items={agenda.wins}
+                extra={
+                  social
+                    ? (item) => (
+                        <WinReactions updateId={item.id} reactions={reactions} social={social} />
+                      )
+                    : undefined
+                }
+              />
               <InfoGroup
                 title="Offers accepted"
                 items={agenda.offersAccepted}
@@ -96,11 +112,31 @@ export function AgendaPanel({
       </div>
 
       <div className="mt-12 flex flex-col gap-12">
+        {agenda.facilitatorTopics.length > 0 && (
+          <DiscussionSection
+            title={`Topics from ${topicAuthors.join(" and ")}`}
+            icon={<TopicsIcon className="size-6" />}
+            items={agenda.facilitatorTopics}
+            emptyText=""
+            canMarkDiscussed={canMarkDiscussed}
+            closed={closed}
+            onToggleDiscussed={onToggleDiscussed}
+          />
+        )}
         <DiscussionSection
           title="Hive mind"
           icon={<HiveIcon className="size-6" />}
           items={agenda.hiveMind}
           emptyText="Nobody has asked the hive mind for anything."
+          canMarkDiscussed={canMarkDiscussed}
+          closed={closed}
+          onToggleDiscussed={onToggleDiscussed}
+        />
+        <DiscussionSection
+          title="Anomalies and trends"
+          icon={<TrendIcon className="size-6" />}
+          items={agenda.anomalies}
+          emptyText="Nothing here has been upvoted yet."
           canMarkDiscussed={canMarkDiscussed}
           closed={closed}
           onToggleDiscussed={onToggleDiscussed}
@@ -260,7 +296,15 @@ function VoteCount({ count }: { count: number }) {
   );
 }
 
-function InfoList({ items, label }: { items: AgendaInfoItem[]; label: string }) {
+function InfoList({
+  items,
+  label,
+  extra,
+}: {
+  items: AgendaInfoItem[];
+  label: string;
+  extra?: (item: AgendaInfoItem) => ReactNode;
+}) {
   return (
     <ul className="mt-2 flex flex-col gap-2">
       {items.map((item) => (
@@ -274,6 +318,7 @@ function InfoList({ items, label }: { items: AgendaInfoItem[]; label: string }) 
             <span className="text-grafite dark:text-marmol/70"> · </span>
             {item.text}
           </ClampedText>
+          {extra?.(item)}
         </li>
       ))}
     </ul>
@@ -285,10 +330,12 @@ function InfoGroup({
   title,
   items,
   total,
+  extra,
 }: {
   title: string;
   items: AgendaInfoItem[];
   total?: number;
+  extra?: (item: AgendaInfoItem) => ReactNode;
 }) {
   if (items.length === 0) return null;
   return (
@@ -299,7 +346,7 @@ function InfoGroup({
           <span className="tabular-nums text-ember-ink"> · {total} this week</span>
         )}
       </h4>
-      <InfoList items={items} label={title} />
+      <InfoList items={items} label={title} extra={extra} />
     </div>
   );
 }

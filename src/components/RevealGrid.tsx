@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { UpdateFields } from "@/components/WritingForm";
-import { HiveIcon, SparkIcon, UpvoteIcon } from "@/components/Icons";
+import { HiveIcon, SparkIcon, TopicsIcon, TrendIcon, UpvoteIcon } from "@/components/Icons";
 import { ClampedText } from "@/components/ClampedText";
-import { HIVE_MIND_KEY, COOL_KEY } from "@/lib/fields";
+import { ANOMALIES_KEY, HIVE_MIND_KEY, COOL_KEY } from "@/lib/fields";
 import { RoleStatusBadge } from "@/components/RoleStatusBadge";
 import { roleFieldKey, type RoleUpdateRow } from "@/lib/roleStatus";
+import { WinReactions, type Social } from "@/components/WinReactions";
 import { isMeaningful, isShown } from "@/lib/updates";
 
 type ParticipantRow = {
@@ -48,6 +49,7 @@ export function RevealGrid({
   readOnly = false,
   animate = false,
   roleUpdates = [],
+  social,
 }: {
   participants: ParticipantRow[];
   updates: UpdateRow[];
@@ -57,6 +59,7 @@ export function RevealGrid({
   readOnly?: boolean;
   animate?: boolean;
   roleUpdates?: RoleUpdateRow[];
+  social?: Social;
 }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -69,6 +72,7 @@ export function RevealGrid({
             update={update}
             reactions={update ? reactions.filter((r) => r.target_update_id === update.id) : []}
             roles={roleUpdates.filter((r) => r.participant_id === p.id)}
+            social={social}
             myParticipantId={myParticipantId}
             onToggleFlag={onToggleFlag}
             readOnly={readOnly}
@@ -89,6 +93,7 @@ function UpdateCard({
   update,
   reactions,
   roles,
+  social,
   myParticipantId,
   onToggleFlag,
   readOnly,
@@ -98,6 +103,7 @@ function UpdateCard({
   update: UpdateRow | undefined;
   reactions: ReactionRow[];
   roles: RoleUpdateRow[];
+  social?: Social;
   myParticipantId: string;
   onToggleFlag: (updateId: string, fieldKey: string) => void;
   readOnly: boolean;
@@ -139,8 +145,8 @@ function UpdateCard({
     onToggle: () => onToggleFlag(update.id, key),
   });
 
-  // Everything someone wrote, in the order the agenda reads it out. Only the hive mind
-  // and anything-cool boxes can be upvoted; the rest is read out as written.
+  // Everything someone wrote, in the order the agenda reads it out. Only the hive mind,
+  // anomalies and worth-sharing boxes can be upvoted; the rest is read out as written.
   const rows: {
     label: string;
     value: string | null;
@@ -150,10 +156,21 @@ function UpdateCard({
     { label: "Wins", value: update.wins },
     { label: "New roles opened", value: update.roles_opened },
     {
+      label: "Topics to add",
+      value: update.facilitator_topics,
+      icon: <TopicsIcon className="size-4 shrink-0 text-ember-ink" />,
+    },
+    {
       label: "Hive mind",
       value: update.need_brain_on,
       icon: <HiveIcon className="size-4 shrink-0 text-ember-ink" />,
       upvoteKey: HIVE_MIND_KEY,
+    },
+    {
+      label: "Anomalies and trends",
+      value: update.anomalies,
+      icon: <TrendIcon className="size-4 shrink-0 text-ember-ink" />,
+      upvoteKey: ANOMALIES_KEY,
     },
     {
       label: "Worth sharing",
@@ -196,10 +213,13 @@ function UpdateCard({
                       </p>
                       <p className="flex flex-wrap items-center gap-x-2 text-sm text-grafite dark:text-marmol/80">
                         <RoleStatusBadge status={role.status} />
+                        {role.status === "stalled" && role.discuss && (
+                          <span className="font-semibold text-ember-ink">On the agenda</span>
+                        )}
                         {role.note && <span className="[overflow-wrap:anywhere]">{role.note}</span>}
                       </p>
                     </div>
-                    {role.status === "stalled" && (
+                    {role.status === "stalled" && role.discuss && (
                       <UpvoteButton
                         label="Stalled role"
                         subject={name}
@@ -219,7 +239,11 @@ function UpdateCard({
               subject={name}
               value={row.value}
               upvote={row.upvoteKey ? upvote(row.upvoteKey) : undefined}
-            />
+            >
+              {row.label === "Wins" && social && (
+                <WinReactions updateId={update.id} reactions={reactions} social={social} />
+              )}
+            </Field>
           ))}
         </div>
       )}
@@ -310,12 +334,14 @@ function Field({
   subject,
   value,
   upvote,
+  children,
 }: {
   icon?: ReactNode;
   label: string;
   subject: string;
   value: string | null;
   upvote?: { count: number; byMe: boolean; readOnly: boolean; onToggle: () => void };
+  children?: ReactNode;
 }) {
   if (!isMeaningful(value)) return null;
 
@@ -335,6 +361,7 @@ function Field({
       >
         {value}
       </ClampedText>
+      {children}
     </div>
   );
 }

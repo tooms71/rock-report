@@ -25,6 +25,8 @@ export type RoleUpdateRow = {
   role_url: string | null;
   status: RoleStatus;
   note: string | null;
+  // A stalled role only goes on the agenda when its owner asks for it.
+  discuss: boolean;
   updated_at: string;
 };
 

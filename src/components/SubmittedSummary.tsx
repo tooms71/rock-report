@@ -2,8 +2,7 @@ import type { UpdateFields } from "@/components/WritingForm";
 import { RoleStatusBadge } from "@/components/RoleStatusBadge";
 import type { RoleUpdateRow } from "@/lib/roleStatus";
 
-// What you just handed in, shown back while the rest of the team finishes, so the
-// wait has something to read and you can check your own words before the reveal.
+// What you just handed in, shown back so you can check your own words before the meeting.
 export function SubmittedSummary({
   fields,
   roles = [],
@@ -14,7 +13,9 @@ export function SubmittedSummary({
   const rows: { label: string; value: string }[] = [
     { label: "Wins", value: fields.wins },
     { label: "New roles opened", value: fields.roles_opened },
+    { label: "Topics to add", value: fields.facilitator_topics },
     { label: "Hive mind", value: fields.need_brain_on },
+    { label: "Anomalies and trends", value: fields.anomalies },
     { label: "Worth sharing", value: fields.anything_else },
   ].filter((row): row is { label: string; value: string } => !!row.value);
 

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { getMondayOfWeek, formatClock, formatWeekOf, parseWeekOf } from "@/lib/date";
+import { getMondayOfWeek, formatWeekOf, parseWeekOf } from "@/lib/date";
 import { getCurrentRock } from "@/lib/rocks";
 import { RockCard } from "@/components/RockCard";
 import { WritingForm, type UpdateFields } from "@/components/WritingForm";
@@ -19,15 +19,16 @@ import { CopyButton } from "@/components/CopyButton";
 import { OpenRoles } from "@/components/OpenRoles";
 import { SubmittedSummary } from "@/components/SubmittedSummary";
 import { RoleUpdates } from "@/components/RoleUpdates";
+import type { Social } from "@/components/WinReactions";
+import { WINS_KEY, type CommentRow } from "@/lib/social";
 import type { RoleUpdateRow } from "@/lib/roleStatus";
 import { buildMeetingNotes } from "@/lib/summary";
 import { buildAgenda } from "@/lib/agenda";
 import { isShown } from "@/lib/updates";
 import { displayNameFor } from "@/lib/names";
+import { FACILITATOR_NAME, isFacilitatorEmail } from "@/lib/facilitators";
 import { signOut, useCurrentUser } from "@/components/AuthGate";
 import { CheckIcon } from "@/components/Icons";
-
-const WRITING_DURATION_MS = 3 * 60 * 1000;
 
 // Someone who opens a session that's already revealed or closed just reads it;
 // they aren't added as a participant (that would create an empty card for them).
@@ -46,8 +47,6 @@ type SessionRow = {
   id: string;
   week_of: string;
   phase: string;
-  writing_ends_at: string | null;
-  facilitator_participant_id: string | null;
 };
 
 type ParticipantRow = {
@@ -70,6 +69,8 @@ export default function Home() {
   const [session, setSession] = useState<SessionRow | null>(null);
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
   const user = useCurrentUser();
+  // Bec runs the meeting every week (see src/lib/facilitators.ts), whoever opens the app first.
+  const isFacilitator = isFacilitatorEmail(user.email);
   // Who I am in this session comes from my Google sign-in, not a typed name.
   const myParticipant = participants.find((p) => p.user_id === user.id) ?? null;
   const myDisplayName =
@@ -87,11 +88,12 @@ export default function Home() {
 
   const [allUpdates, setAllUpdates] = useState<UpdateRow[]>([]);
   const [myUpdate, setMyUpdate] = useState<UpdateRow | null>(null);
-  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [reactions, setReactions] = useState<ReactionRow[]>([]);
   // What people tapped for their open roles this week (offers extended or accepted,
   // stalled, on track).
   const [roleUpdates, setRoleUpdates] = useState<RoleUpdateRow[]>([]);
+  // Comments people leave on each other's wins.
+  const [comments, setComments] = useState<CommentRow[]>([]);
   // Bumped whenever I change something, so a refresh that was already in flight can't
   // overwrite my change with older data.
   const mutationVersion = useRef(0);
@@ -109,11 +111,16 @@ export default function Home() {
         .from("sessions")
         .select("*")
         .eq("week_of", weekOf)
-        .order("created_at", { ascending: false })
+        .order("created_at", { ascending: true })
         .limit(1)
         .maybeSingle();
 
       if (!active) return;
+      // A session left over from the old flow, still waiting in the lobby, opens for writing.
+      if (sessionData?.phase === "lobby") {
+        await supabase.from("sessions").update({ phase: "writing" }).eq("id", sessionData.id);
+        sessionData.phase = "writing";
+      }
       setSession(sessionData);
 
       if (sessionData) {
@@ -281,7 +288,36 @@ export default function Home() {
     };
   }, [session?.id]);
 
-  // Load this session's reactions (including red flags), then keep them live.
+  // Load this week's comments on wins, then keep them live.
+  useEffect(() => {
+    if (!session) return;
+    const sessionId = session.id;
+    let active = true;
+    supabase
+      .from("comments")
+      .select("*")
+      .eq("session_id", sessionId)
+      .then(({ data }) => {
+        if (active && data) setComments(data as CommentRow[]);
+      });
+    const channel = supabase
+      .channel(`comments-${sessionId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "comments", filter: `session_id=eq.${sessionId}` },
+        (payload) => {
+          const row = payload.new as CommentRow;
+          setComments((prev) => (prev.some((c) => c.id === row.id) ? prev : [...prev, row]));
+        }
+      )
+      .subscribe();
+    return () => {
+      active = false;
+      supabase.removeChannel(channel);
+    };
+  }, [session?.id]);
+
+  // Load this session's reactions (upvotes, discussed marks and emoji), then keep them live.
   useEffect(() => {
     if (!session) return;
     let active = true;
@@ -341,7 +377,24 @@ export default function Home() {
     };
   }, [session?.id]);
 
-  // The moment writing starts, make sure I have a draft row to autosave into.
+  // Nobody clicks "create" or "join": opening the app opens the week's session and puts
+  // you in it, so you can go straight to writing.
+  const creatingRef = useRef(false);
+  const joiningRef = useRef(false);
+  useEffect(() => {
+    if (loading || session || creatingRef.current) return;
+    creatingRef.current = true;
+    void handleCreateSession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, session]);
+  useEffect(() => {
+    if (!session || session.phase !== "writing" || myParticipant || joiningRef.current) return;
+    joiningRef.current = true;
+    void handleJoin();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.id, session?.phase, myParticipant]);
+
+  // The moment I'm in the session, make sure I have a draft row to autosave into.
   useEffect(() => {
     if (!session || !me) return;
     if (session.phase !== "writing") return;
@@ -393,7 +446,7 @@ export default function Home() {
     async function refresh() {
       if (document.hidden) return;
       const version = mutationVersion.current;
-      const [s, p, u, r, ro] = await Promise.all([
+      const [s, p, u, r, ro, co] = await Promise.all([
         supabase.from("sessions").select("*").eq("id", sessionId).maybeSingle(),
         supabase
           .from("participants")
@@ -403,6 +456,7 @@ export default function Home() {
         supabase.from("updates").select("*").eq("session_id", sessionId),
         supabase.from("reactions").select("*").eq("session_id", sessionId),
         supabase.from("role_updates").select("*").eq("session_id", sessionId),
+        supabase.from("comments").select("*").eq("session_id", sessionId),
       ]);
       // If I changed something while this was in flight, my change is newer than this data.
       if (!active || version !== mutationVersion.current) return;
@@ -432,6 +486,7 @@ export default function Home() {
       if (ro.data) {
         setRoleUpdates((prev) => (sameJson(prev, ro.data) ? prev : (ro.data as RoleUpdateRow[])));
       }
+      if (co.data) setComments((prev) => (sameJson(prev, co.data) ? prev : (co.data as CommentRow[])));
     }
 
     const interval = setInterval(refresh, POLL_MS);
@@ -443,107 +498,64 @@ export default function Home() {
     };
   }, [session?.id, sessionClosed]);
 
-  async function attemptReveal(sessionId: string) {
-    await supabase
-      .from("sessions")
-      .update({ phase: "reveal" })
-      .eq("id", sessionId)
-      .eq("phase", "writing");
-  }
-
-  // Ending writing early is a big step, so never trust this screen's own idea of who is
-  // here. Ask the database: reveal only if every person in the session has submitted.
-  async function revealIfEveryoneSubmitted(sessionId: string) {
-    const [people, drafts] = await Promise.all([
-      supabase.from("participants").select("id").eq("session_id", sessionId),
-      supabase.from("updates").select("participant_id, submitted_at").eq("session_id", sessionId),
-    ]);
-    if (!people.data || !drafts.data || people.data.length === 0) return;
-    const submitted = new Set(
-      drafts.data.filter((d) => d.submitted_at).map((d) => d.participant_id)
-    );
-    if (people.data.every((person) => submitted.has(person.id))) {
-      await attemptReveal(sessionId);
-    }
-  }
-
-  // Countdown, computed from the shared writing_ends_at — never a local stopwatch.
-  useEffect(() => {
-    if (!session || session.phase !== "writing" || !session.writing_ends_at) {
-      // Reset the displayed countdown to match the external session state we just read.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSecondsLeft(null);
-      return;
-    }
-
-    const endsAt = new Date(session.writing_ends_at).getTime();
-    function tick() {
-      const remaining = Math.max(0, (endsAt - Date.now()) / 1000);
-      setSecondsLeft(remaining);
-    }
-    tick();
-    const interval = setInterval(tick, 250);
-    return () => clearInterval(interval);
-  }, [session?.phase, session?.writing_ends_at]);
-
-  // Flip to reveal when time's up. The DB guard (phase='writing') means only one
-  // caller across all connected clients actually succeeds, however many try.
-  useEffect(() => {
-    if (!session || session.phase !== "writing") return;
-    if (secondsLeft === null || secondsLeft > 0) return;
-    attemptReveal(session.id);
-  }, [session?.phase, session?.id, secondsLeft]);
-
-  // Flip to reveal early once everyone present has submitted.
-  useEffect(() => {
-    if (!session || session.phase !== "writing") return;
-    if (participants.length === 0) return;
-    const submittedCount = allUpdates.filter((u) => u.submitted_at).length;
-    if (submittedCount >= participants.length) {
-      revealIfEveryoneSubmitted(session.id);
-    }
-  }, [session?.phase, session?.id, allUpdates, participants.length]);
-
   // Arrive at the top of the reveal, not wherever the writing form was scrolled to.
   useEffect(() => {
     if (session?.phase === "reveal" || session?.phase === "agenda") window.scrollTo({ top: 0 });
   }, [session?.phase]);
 
+  // The week's session opens by itself the first time anyone visits, and everyone writes
+  // into it any time before the meeting. If two people open the app at the same moment and
+  // both create one, the earlier session wins and the later one is removed.
   async function handleCreateSession() {
     setBusy(true);
     setError(null);
     try {
       const weekOf = getMondayOfWeek(new Date());
 
-      const { data: newSession, error: sessionError } = await supabase
+      const { data: created, error: sessionError } = await supabase
         .from("sessions")
-        .insert({ week_of: weekOf, phase: "lobby" })
+        .insert({ week_of: weekOf, phase: "writing" })
         .select()
         .single();
       if (sessionError) throw sessionError;
 
-      const { data: participant, error: participantError } = await supabase
+      const { data: earliest } = await supabase
+        .from("sessions")
+        .select("*")
+        .eq("week_of", weekOf)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .single();
+      let target: SessionRow = created;
+      if (earliest && earliest.id !== created.id) {
+        await supabase.from("sessions").delete().eq("id", created.id);
+        target = earliest;
+      }
+
+      const { data: already } = await supabase
         .from("participants")
-        .insert({
-          session_id: newSession.id,
+        .select("id")
+        .eq("session_id", target.id)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!already) {
+        const { error: participantError } = await supabase.from("participants").insert({
+          session_id: target.id,
           user_id: user.id,
           display_name: displayNameFor(user, []),
-        })
-        .select()
-        .single();
-      if (participantError) throw participantError;
+        });
+        if (participantError) throw participantError;
+      }
 
-      const { data: updatedSession, error: updateError } = await supabase
-        .from("sessions")
-        .update({ facilitator_participant_id: participant.id })
-        .eq("id", newSession.id)
-        .select()
-        .single();
-      if (updateError) throw updateError;
-
-      setSession(updatedSession);
-      setParticipants([participant]);
+      const { data: everyone } = await supabase
+        .from("participants")
+        .select("*")
+        .eq("session_id", target.id)
+        .order("joined_at", { ascending: true });
+      setSession(target);
+      setParticipants(everyone ?? []);
     } catch {
+      creatingRef.current = false;
       setError(CONNECTION_ERROR);
     } finally {
       setBusy(false);
@@ -570,67 +582,27 @@ export default function Home() {
     }
   }
 
-  async function handleStartWriting() {
+  // Facilitator starts the meeting: everyone's updates are revealed for reading and upvoting.
+  async function handleStartMeeting() {
     bump();
-    if (!session) return;
+    if (!session || !isFacilitator) return;
     setBusy(true);
     setError(null);
     try {
-      const writingEndsAt = new Date(Date.now() + WRITING_DURATION_MS).toISOString();
-      const { data, error: startError } = await supabase
+      const { data, error: revealError } = await supabase
         .from("sessions")
-        .update({ phase: "writing", writing_ends_at: writingEndsAt })
+        .update({ phase: "reveal" })
         .eq("id", session.id)
-        .eq("phase", "lobby")
+        .eq("phase", "writing")
         .select()
         .single();
-      if (startError) throw startError;
+      if (revealError) throw revealError;
       setSession(data);
     } catch {
       setError(CONNECTION_ERROR);
     } finally {
       setBusy(false);
     }
-  }
-
-  async function handleRevealNow() {
-    bump();
-    if (!session) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const { error: revealError } = await supabase
-        .from("sessions")
-        .update({ phase: "reveal" })
-        .eq("id", session.id)
-        .eq("phase", "writing");
-      if (revealError) setError(CONNECTION_ERROR);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  // Facilitator gives the whole room one more minute (everyone's clock is derived
-  // from writing_ends_at, so this reaches every screen at once).
-  async function handleAddMinute() {
-    bump();
-    if (!session?.writing_ends_at || (secondsLeft !== null && secondsLeft <= 0)) return;
-    setError(null);
-    const extended = new Date(
-      new Date(session.writing_ends_at).getTime() + 60 * 1000
-    ).toISOString();
-    const { data, error: extendError } = await supabase
-      .from("sessions")
-      .update({ writing_ends_at: extended })
-      .eq("id", session.id)
-      .eq("phase", "writing")
-      .select()
-      .single();
-    if (extendError) {
-      setError(CONNECTION_ERROR);
-      return;
-    }
-    setSession(data);
   }
 
   // Facilitator moves the room from reading and flagging to the meeting agenda.
@@ -726,7 +698,7 @@ export default function Home() {
   // which syncs live to everyone like any other reaction.
   async function handleToggleDiscussed(updateId: string, fieldKey: string) {
     bump();
-    if (!me || !session || me.id !== session.facilitator_participant_id) return;
+    if (!me || !session || !isFacilitator) return;
 
     const existing = reactions.filter(
       (r) =>
@@ -766,7 +738,9 @@ export default function Home() {
     if (data) setReactions((prev) => [...prev, data]);
   }
 
-  async function handleToggleFlag(updateId: string, fieldKey: string) {
+  // Adds my reaction of this kind to a field, or takes it back if I already gave it. Upvotes
+  // and emoji on wins are both reactions; only the emoji differs.
+  async function toggleReaction(updateId: string, fieldKey: string, emoji: string) {
     bump();
     if (!me || !session || me.id === VIEWER_ID) return;
 
@@ -775,16 +749,16 @@ export default function Home() {
         r.target_type === "field" &&
         r.target_update_id === updateId &&
         r.field_key === fieldKey &&
-        r.emoji === FLAG_EMOJI &&
+        r.emoji === emoji &&
         r.participant_id === me.id
     );
 
     if (existing) {
-      const { error: unflagError } = await supabase
+      const { error: removeError } = await supabase
         .from("reactions")
         .delete()
         .eq("id", existing.id);
-      if (unflagError) {
+      if (removeError) {
         setError(CONNECTION_ERROR);
         return;
       }
@@ -792,23 +766,49 @@ export default function Home() {
       return;
     }
 
-    const { data, error: flagError } = await supabase
+    const { data, error: addError } = await supabase
       .from("reactions")
       .insert({
         session_id: session.id,
         target_type: "field",
         target_update_id: updateId,
         field_key: fieldKey,
-        emoji: FLAG_EMOJI,
+        emoji,
         participant_id: me.id,
       })
       .select()
       .single();
-    if (flagError) {
+    if (addError) {
       setError(CONNECTION_ERROR);
       return;
     }
     if (data) setReactions((prev) => [...prev, data]);
+  }
+
+  const handleToggleFlag = (updateId: string, fieldKey: string) =>
+    toggleReaction(updateId, fieldKey, FLAG_EMOJI);
+
+  async function handleAddComment(updateId: string, body: string): Promise<boolean> {
+    bump();
+    if (!me || !session || me.id === VIEWER_ID) return false;
+    const { data, error: commentError } = await supabase
+      .from("comments")
+      .insert({
+        session_id: session.id,
+        target_type: "field",
+        target_update_id: updateId,
+        field_key: WINS_KEY,
+        participant_id: me.id,
+        body,
+      })
+      .select()
+      .single();
+    if (commentError || !data) {
+      setError(CONNECTION_ERROR);
+      return false;
+    }
+    setComments((prev) => (prev.some((c) => c.id === data.id) ? prev : [...prev, data as CommentRow]));
+    return true;
   }
 
   if (loading) {
@@ -819,13 +819,9 @@ export default function Home() {
     );
   }
 
-  const isFacilitator = !!me && me.id === session?.facilitator_participant_id;
   const isViewer = me?.id === VIEWER_ID;
-  // Strictly submitted people (for the live "who's done" display during writing)...
+  // Strictly submitted people (for the "who's done" display while writing)...
   const submittedCount = allUpdates.filter((u) => u.submitted_at).length;
-  const stillWriting = participants.length - submittedCount;
-  const iHaveSubmitted = !!myUpdate?.submitted_at;
-  const lastToSubmit = participants.length > 1 && !iHaveSubmitted && stillWriting === 1;
   // ...versus everyone with something to show once the reveal happens (drafts count).
   const updatesInCount = allUpdates.filter((u) =>
     isShown(u, roleUpdates.some((r) => r.participant_id === u.participant_id))
@@ -839,18 +835,6 @@ export default function Home() {
   const nextRockName = session
     ? getCurrentRock(new Date(parseWeekOf(session.week_of).getTime() + 7 * 24 * 60 * 60 * 1000)).name
     : "";
-  // Time the team actually saved: how much clock was left when the last person submitted.
-  const lastSubmittedAt = allUpdates.reduce(
-    (latest, u) => (u.submitted_at ? Math.max(latest, new Date(u.submitted_at).getTime()) : latest),
-    0
-  );
-  const spareSeconds =
-    everyoneSubmitted && session?.writing_ends_at && lastSubmittedAt
-      ? Math.floor((new Date(session.writing_ends_at).getTime() - lastSubmittedAt) / 1000)
-      : 0;
-  const facilitatorName =
-    participants.find((p) => p.id === session?.facilitator_participant_id)?.display_name ??
-    "the facilitator";
   const showingResults =
     !!me &&
     (session?.phase === "reveal" || session?.phase === "agenda" || session?.phase === "closed");
@@ -863,28 +847,17 @@ export default function Home() {
   const discussedCount = agendaItems.filter((item) => item.discussed).length;
   const leftToDiscuss = flaggedTopicCount - discussedCount;
 
-  const timerUrgent = secondsLeft !== null && secondsLeft <= 30;
-  const countdownBeat =
-    secondsLeft !== null && secondsLeft > 0 && secondsLeft <= 3
-      ? Math.ceil(secondsLeft)
-      : null;
-  const timerAnnouncement =
-    secondsLeft === null
-      ? ""
-      : secondsLeft <= 10
-      ? "10 seconds left"
-      : secondsLeft <= 30
-      ? "30 seconds left"
-      : secondsLeft <= 60
-      ? "1 minute left"
-      : "";
-
-  const joinCopy =
-    session?.phase === "writing"
-      ? "Writing is under way. Join now to add your update before time's up."
-      : participants.length === 0
-      ? "This week's session is open. Be the first to join."
-      : "This week's session is open. Join in.";
+  const facilitatorName = FACILITATOR_NAME;
+  // Reactions and comments on wins: open while reading and in the meeting, read-only once closed.
+  const social: Social = {
+    comments,
+    nameOf: (participantId) =>
+      participants.find((p) => p.id === participantId)?.display_name ?? "Someone",
+    myParticipantId: me?.id ?? "",
+    canReact: !!me && !isViewer && !isClosed,
+    onToggleEmoji: (updateId, emoji) => void toggleReaction(updateId, WINS_KEY, emoji),
+    onAddComment: handleAddComment,
+  };
 
   const primaryButton =
     "min-h-11 rounded-lg bg-ember-fill px-4 py-2 font-semibold text-white transition disabled:opacity-50";
@@ -904,18 +877,16 @@ export default function Home() {
           <h1 className="font-heading text-3xl font-bold text-ardesia dark:text-marmol">
             Rock Report
           </h1>
-          {!(me && session?.phase === "writing") && (
-            <Link
-              href="/archive"
-              className="inline-flex min-h-11 items-center text-sm font-semibold text-ember-ink"
-            >
-              Past sessions →
-            </Link>
-          )}
+          <Link
+            href="/archive"
+            className="inline-flex min-h-11 items-center text-sm font-semibold text-ember-ink"
+          >
+            Past sessions →
+          </Link>
         </div>
 
-        {/* The rock is for the doorway; during the 3-minute timer the form comes first. */}
-        {!showingResults && session?.phase !== "writing" && <RockCard />}
+        {/* The rock is for the doorway: shown until the meeting starts. */}
+        {!showingResults && <RockCard />}
       </div>
 
       <p className="-mt-3 text-sm text-grafite dark:text-marmol/70">
@@ -937,102 +908,64 @@ export default function Home() {
 
       {!session && (
         <div className="flex flex-col gap-3">
-          <p className="text-sm text-grafite dark:text-marmol/80">
-            No session yet this week. Starting one makes you the facilitator: you
-            start the timer and control the reveal.
+          <p className="text-sm text-grafite dark:text-marmol/80" role="status">
+            {error ? "This week's session couldn't be opened." : "Opening this week's session…"}
           </p>
-          <button
-            type="button"
-            onClick={() => void handleCreateSession()}
-            disabled={busy}
-            className={primaryButton}
-          >
-            Create this week&apos;s session
-          </button>
+          {error && (
+            <button
+              type="button"
+              onClick={() => void handleCreateSession()}
+              disabled={busy}
+              className={primaryButton}
+            >
+              Try again
+            </button>
+          )}
         </div>
       )}
 
       {session && !me && (
-        <div className="flex flex-col gap-4">
-          <PresenceList participants={participants} session={session} />
-          <p className="text-sm text-grafite dark:text-marmol/80">{joinCopy}</p>
-          <button
-            type="button"
-            onClick={() => void handleJoin()}
-            disabled={busy}
-            className={primaryButton}
-          >
-            Join as {myDisplayName}
-          </button>
-        </div>
-      )}
-
-      {session && me && session.phase === "lobby" && (
-        <div className="flex flex-col gap-4">
-          <PresenceList participants={participants} session={session} />
-          {isFacilitator ? (
-            <>
-              <p className="text-sm text-grafite dark:text-marmol/80">
-                You&apos;re the facilitator: you start the timer and can reveal
-                everyone&apos;s updates early.
-              </p>
-              <CopyButton
-                label="Copy invite link"
-                copiedText="Copied. Teammates open it to join."
-                getText={() => window.location.origin}
-              />
-              <button
-                type="button"
-                onClick={handleStartWriting}
-                disabled={busy}
-                className={primaryButton}
-              >
-                Start writing (3:00)
-              </button>
-            </>
-          ) : (
-            <p className="text-sm text-grafite dark:text-marmol/80">
-              You&apos;re in. Waiting for {facilitatorName} to start writing.
-            </p>
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-grafite dark:text-marmol/80" role="status">
+            {busy ? "Joining…" : "Join this week's session to write your update."}
+          </p>
+          {!busy && (
+            <button
+              type="button"
+              onClick={() => void handleJoin()}
+              className={primaryButton}
+            >
+              Join as {myDisplayName}
+            </button>
           )}
         </div>
       )}
 
       {session && me && session.phase === "writing" && (
         <div className="flex flex-col gap-5">
-          {/* The room, at a glance: the clock and who has finished. Stays in view. */}
+          {/* The room, at a glance: who has finished. Stays in view. */}
           <div className="sticky top-0 z-10 border-b border-grafite/20 bg-background pb-3 pt-3 dark:border-white/15">
-            <div className="flex items-end justify-between gap-4">
-              <p
-                role="timer"
-                aria-label="Time left"
-                className={`font-heading text-5xl font-bold tabular-nums ${
-                  timerUrgent ? "timer-urgent text-ember-ink" : "text-ember"
-                }`}
-              >
-                {secondsLeft !== null ? formatClock(secondsLeft) : "3:00"}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-base font-semibold text-ardesia dark:text-marmol">
+                {submittedCount} of {participants.length} submitted
               </p>
-              <div className="flex items-center gap-3 pb-1">
-                <p className="text-sm text-grafite dark:text-marmol/80">
-                  {submittedCount} of {participants.length} submitted
-                </p>
-                {isFacilitator && (
-                  <button
-                    type="button"
-                    onClick={handleAddMinute}
-                    className="min-h-11 rounded-lg border border-grafite/50 px-3 text-sm font-semibold text-ardesia transition hover:border-ember-ink hover:text-ember-ink dark:border-white/40 dark:text-marmol"
-                  >
-                    +1 min
-                  </button>
-                )}
-              </div>
+              {isFacilitator && (
+                <ConfirmButton
+                  label="Start the meeting"
+                  prompt={`${notSubmittedNames.join(", ")} ${
+                    notSubmittedNames.length === 1 ? "hasn't" : "haven't"
+                  } submitted yet. Start the meeting and reveal everyone's updates now?`}
+                  confirmLabel="Yes, start"
+                  needsConfirm={submittedCount < participants.length}
+                  onConfirm={handleStartMeeting}
+                  disabled={busy}
+                  className="min-h-11 rounded-lg bg-ember-fill px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50"
+                />
+              )}
             </div>
-            <p className="sr-only" role="status" aria-live="polite">
-              {timerAnnouncement}
-            </p>
             <ul
               aria-label="Who has submitted"
-              className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5"
+              className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5"
             >
               {participants.map((p) => {
                 const done = allUpdates.some(
@@ -1063,6 +996,13 @@ export default function Home() {
             </ul>
           </div>
 
+          <p className="text-base text-grafite dark:text-marmol/80">
+            Write your update any time before the meeting. It saves as you go
+            {isFacilitator
+              ? ", and nobody sees it until you start the meeting."
+              : `, and nobody sees it until ${facilitatorName} starts the meeting.`}
+          </p>
+
           {myUpdate && !myUpdate.submitted_at && me && (
             <RoleUpdates
               sessionId={session.id}
@@ -1089,7 +1029,7 @@ export default function Home() {
               onAutosave={handleAutosave}
               onSubmit={handleSubmitUpdate}
               submitting={busy}
-              lastToSubmit={lastToSubmit}
+              isFacilitator={isFacilitator}
               hasRoleUpdates={myRoleUpdates.length > 0}
             />
           )}
@@ -1098,12 +1038,7 @@ export default function Home() {
             <div className="flex flex-col gap-4">
               <p className="flex items-center gap-2 text-base font-semibold text-ardesia dark:text-marmol">
                 <CheckIcon className="draw-check size-5 shrink-0 text-ember-ink" />
-                <span>
-                Submitted.{" "}
-                {stillWriting > 0
-                  ? `Waiting for ${stillWriting} more…`
-                  : "Revealing now…"}
-                </span>
+                <span>Submitted. You can still edit until the meeting starts.</span>
               </p>
               <SubmittedSummary fields={myUpdate} roles={myRoleUpdates} />
               <button
@@ -1119,35 +1054,6 @@ export default function Home() {
             </div>
           )}
 
-          {isFacilitator && (
-            <div className="mt-4 flex flex-col gap-2 border-t border-grafite/20 pt-5 dark:border-white/15">
-              <ConfirmButton
-                label="End writing and reveal"
-                prompt={`${notSubmittedNames.join(", ")} ${
-                  notSubmittedNames.length === 1 ? "hasn't" : "haven't"
-                } submitted yet. Reveal everyone's updates now?`}
-                confirmLabel="Yes, reveal"
-                needsConfirm={submittedCount < participants.length}
-                onConfirm={handleRevealNow}
-                disabled={busy}
-                className="min-h-11 self-start rounded-lg border border-ember-ink px-3 text-sm font-semibold text-ember-ink transition disabled:opacity-50"
-              />
-            </div>
-          )}
-        </div>
-      )}
-
-      {countdownBeat !== null && session?.phase === "writing" && (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none fixed inset-0 z-20 grid place-items-center"
-        >
-          <span
-            key={countdownBeat}
-            className="count-beat font-heading text-8xl font-bold leading-none text-ember"
-          >
-            {countdownBeat}
-          </span>
         </div>
       )}
 
@@ -1193,6 +1099,7 @@ export default function Home() {
                         updates: allUpdates,
                         reactions,
                         roleUpdates,
+                        comments,
                       })
                     }
                   />
@@ -1212,6 +1119,7 @@ export default function Home() {
               updates={allUpdates}
               reactions={reactions}
               roleUpdates={roleUpdates}
+              social={social}
               canMarkDiscussed={isFacilitator && inAgenda}
               closed={isClosed}
               onToggleDiscussed={handleToggleDiscussed}
@@ -1230,9 +1138,7 @@ export default function Home() {
               {/* Did everyone make it? Said once, here, instead of in a second headline. */}
               <p className="-mt-2 text-base text-grafite dark:text-marmol/80">
                 {everyoneSubmitted
-                  ? `${updatesInCount} ${updatesInCount === 1 ? "update" : "updates"} in${
-                      spareSeconds >= 5 ? ` · ${formatClock(spareSeconds)} to spare` : ""
-                    }`
+                  ? `${updatesInCount} ${updatesInCount === 1 ? "update" : "updates"} in`
                   : `${submittedCount} of ${participants.length} submitted. Drafts are marked.`}
               </p>
               {isViewer && (
@@ -1253,6 +1159,7 @@ export default function Home() {
                 updates={allUpdates}
                 reactions={reactions}
                 roleUpdates={roleUpdates}
+                social={social}
                 myParticipantId={me.id}
                 onToggleFlag={handleToggleFlag}
                 readOnly={isViewer}
@@ -1275,6 +1182,7 @@ export default function Home() {
                   updates={allUpdates}
                   reactions={reactions}
                   roleUpdates={roleUpdates}
+                  social={social}
                   myParticipantId={me.id}
                   onToggleFlag={handleToggleFlag}
                   readOnly
@@ -1339,35 +1247,3 @@ export default function Home() {
     </main>
   );
 }
-
-function PresenceList({
-  participants,
-  session,
-}: {
-  participants: ParticipantRow[];
-  session: SessionRow;
-}) {
-  return (
-    <div>
-      <h2 className="text-sm font-semibold text-ardesia dark:text-marmol">
-        Who&apos;s here ({participants.length})
-      </h2>
-      <ul className="mt-2 flex flex-wrap gap-2">
-        {participants.map((p) => (
-          <li
-            key={p.id}
-            className="settle rounded-full border border-grafite/20 px-3 py-1 text-sm text-ardesia dark:border-white/20 dark:text-marmol"
-          >
-            {p.display_name}
-            {p.id === session.facilitator_participant_id && (
-              <span className="ml-1.5 text-xs text-grafite dark:text-marmol/70">
-                facilitator
-              </span>
-            )}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-

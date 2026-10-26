@@ -126,3 +126,32 @@ export function SendIcon({ className }: IconProps) {
     </Svg>
   );
 }
+
+// Anomalies and trends: a line that climbs, with a break in it.
+export function TrendIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M3.5 17l5-5.5 3.5 3 6.5-8" />
+      <path d="M14.5 6.5h4v4" />
+    </Svg>
+  );
+}
+
+// Topics added to the agenda: a list with bullets.
+export function TopicsIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M9.5 7h10M9.5 12h10M9.5 17h10" />
+      <path d="M4.5 7v.01M4.5 12v.01M4.5 17v.01" />
+    </Svg>
+  );
+}
+
+// Comment: a speech bubble.
+export function CommentIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M4 5.5h16v10H12l-4.5 3.5v-3.5H4z" />
+    </Svg>
+  );
+}

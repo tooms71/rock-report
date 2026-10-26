@@ -1,6 +1,6 @@
 import { DISCUSSED_EMOJI, FLAG_EMOJI, type ReactionRow } from "@/components/RevealGrid";
 import type { UpdateFields } from "@/components/WritingForm";
-import { COOL_KEY, HIVE_MIND_KEY, UPVOTE_FIELDS } from "@/lib/fields";
+import { FACILITATOR_TOPICS_KEY, UPVOTE_FIELDS } from "@/lib/fields";
 import { roleFieldKey, type RoleUpdateRow } from "@/lib/roleStatus";
 import { isMeaningful, isShown } from "@/lib/updates";
 
@@ -29,9 +29,11 @@ export type DiscussionItem = {
 // The meeting's agenda, in the order the room works through it:
 //   1. wins, offers accepted, offers extended  (offers come from the role buttons)
 //   2. new roles opened                         (read out)
-//   3. hive mind                                (everything people asked, plus every stalled
-//                                                role, most upvotes first)
-//   4. anything cool                            (only what got an upvote, most first)
+//   3. topics the facilitator added             (in the order she wrote them)
+//   4. hive mind                                (everything people asked, plus any stalled
+//                                                role its owner put forward, most upvotes first)
+//   5. anomalies and trends                     (only what got an upvote, most first)
+//   6. worth sharing                            (only what got an upvote, most first)
 // Everyone is listed in the order they joined, so numbers match between the live view,
 // the archive and the copied notes.
 export function buildAgenda(
@@ -98,7 +100,7 @@ export function buildAgenda(
 
   const topics = (fieldKey: string, label: string, onlyUpvoted: boolean): DiscussionItem[] => {
     const items = shown.flatMap((u): DiscussionItem[] => {
-      const value = u[fieldKey as typeof HIVE_MIND_KEY | typeof COOL_KEY];
+      const value = u[fieldKey as (typeof UPVOTE_FIELDS)[number]["key"]];
       if (!isMeaningful(value)) return [];
       const itemKey = `${u.id}:${fieldKey}`;
       const voteCount = voteCountFor(itemKey);
@@ -120,10 +122,10 @@ export function buildAgenda(
     return items.sort((a, b) => b.voteCount - a.voteCount);
   };
 
-  // A stalled role is a request for help, so it joins the hive mind list on its own.
+  // A stalled role joins the hive mind list only when its owner asked to discuss it.
   const stalledRoles: DiscussionItem[] = shown.flatMap((u) =>
     roleUpdates
-      .filter((r) => r.participant_id === u.participant_id && r.status === "stalled")
+      .filter((r) => r.participant_id === u.participant_id && r.status === "stalled" && r.discuss)
       .map((r) => {
         const fieldKey = roleFieldKey(r.notion_page_id);
         const itemKey = `${u.id}:${fieldKey}`;
@@ -140,11 +142,35 @@ export function buildAgenda(
       })
   );
 
-  const [hive, cool] = UPVOTE_FIELDS;
+  const [hive, anomaly, cool] = UPVOTE_FIELDS;
   const hiveMind = [...topics(hive.key, hive.label, false), ...stalledRoles].sort(
     (a, b) => b.voteCount - a.voteCount
   );
+  const anomalies = topics(anomaly.key, anomaly.label, true);
   const cools = topics(cool.key, cool.label, true);
+
+  // The facilitator's box: one agenda topic per line, kept in the order she wrote them.
+  // They are on the agenda whatever the votes, so they are not upvoted.
+  const facilitatorTopics: DiscussionItem[] = shown.flatMap((u) =>
+    (u[FACILITATOR_TOPICS_KEY] ?? "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => isMeaningful(line))
+      .map((line, index) => {
+        const fieldKey = `${FACILITATOR_TOPICS_KEY}:${index}`;
+        const itemKey = `${u.id}:${fieldKey}`;
+        return {
+          itemKey,
+          updateId: u.id,
+          fieldKey,
+          name: nameFor(u.participant_id),
+          label: "Topic",
+          value: line,
+          discussed: discussedKeys.has(itemKey),
+          voteCount: 0,
+        };
+      })
+  );
 
   return {
     shown,
@@ -155,10 +181,12 @@ export function buildAgenda(
     offersExtended,
     offersExtendedTotal,
     rolesOpened,
+    facilitatorTopics,
     hiveMind,
+    anomalies,
     cool: cools,
     // Everything the room has to talk through, for counts and the close prompt.
-    discussion: [...hiveMind, ...cools],
+    discussion: [...facilitatorTopics, ...hiveMind, ...anomalies, ...cools],
   };
 }
 

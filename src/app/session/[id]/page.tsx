@@ -1,5 +1,7 @@
 "use client";
 
+import type { Social } from "@/components/WinReactions";
+import type { CommentRow } from "@/lib/social";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
@@ -40,6 +42,7 @@ export default function SessionDetailPage() {
   const [updates, setUpdates] = useState<UpdateRow[]>([]);
   const [reactions, setReactions] = useState<ReactionRow[]>([]);
   const [roleUpdates, setRoleUpdates] = useState<RoleUpdateRow[]>([]);
+  const [comments, setComments] = useState<CommentRow[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -64,6 +67,7 @@ export default function SessionDetailPage() {
         { data: updatesData },
         { data: reactionsData },
         { data: roleUpdatesData },
+        { data: commentsData },
       ] = await Promise.all([
         supabase
           .from("participants")
@@ -73,6 +77,7 @@ export default function SessionDetailPage() {
         supabase.from("updates").select("*").eq("session_id", sessionId),
         supabase.from("reactions").select("*").eq("session_id", sessionId),
         supabase.from("role_updates").select("*").eq("session_id", sessionId),
+        supabase.from("comments").select("*").eq("session_id", sessionId),
       ]);
 
       if (!active) return;
@@ -80,6 +85,7 @@ export default function SessionDetailPage() {
       setUpdates(updatesData ?? []);
       setReactions(reactionsData ?? []);
       setRoleUpdates((roleUpdatesData ?? []) as RoleUpdateRow[]);
+      setComments((commentsData ?? []) as CommentRow[]);
       setLoading(false);
     }
 
@@ -107,6 +113,15 @@ export default function SessionDetailPage() {
       </main>
     );
   }
+
+  // Past sessions are read-only: reactions and comments show, but can't be added.
+  const social: Social = {
+    comments,
+    nameOf: (participantId) =>
+      participants.find((p) => p.id === participantId)?.display_name ?? "Someone",
+    myParticipantId: "",
+    canReact: false,
+  };
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-10">
@@ -138,10 +153,11 @@ export default function SessionDetailPage() {
             updates,
             reactions,
             roleUpdates,
+            comments,
           })
         }
       />
-      <AgendaPanel participants={participants} updates={updates} reactions={reactions} roleUpdates={roleUpdates} closed={session.phase === "closed"} />
+      <AgendaPanel participants={participants} updates={updates} reactions={reactions} roleUpdates={roleUpdates} social={social} closed={session.phase === "closed"} />
       <details className="group">
         <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 font-heading text-2xl font-bold text-ardesia dark:text-marmol [&::-webkit-details-marker]:hidden">
           Everyone&apos;s updates
@@ -156,6 +172,7 @@ export default function SessionDetailPage() {
             updates={updates}
             reactions={reactions}
             roleUpdates={roleUpdates}
+            social={social}
             myParticipantId=""
             onToggleFlag={() => {}}
             readOnly

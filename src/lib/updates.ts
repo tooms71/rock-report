@@ -5,7 +5,9 @@ export const UPDATE_FIELD_KEYS: (keyof UpdateFields)[] = [
   "wins",
   // The hive mind box. The column is older than that name; see src/lib/fields.ts.
   "need_brain_on",
+  "anomalies",
   "anything_else",
+  "facilitator_topics",
 ];
 
 // Did the person put anything in their update at all?
