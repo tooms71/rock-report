@@ -1,6 +1,7 @@
 import { DISCUSSED_EMOJI, FLAG_EMOJI, type ReactionRow } from "@/components/RevealGrid";
 import type { UpdateFields } from "@/components/WritingForm";
 import { FACILITATOR_TOPICS_KEY, UPVOTE_FIELDS } from "@/lib/fields";
+import { WINS_KEY } from "@/lib/social";
 import { roleFieldKey, type RoleUpdateRow } from "@/lib/roleStatus";
 import { isMeaningful, isShown } from "@/lib/updates";
 
@@ -12,7 +13,14 @@ export type AgendaUpdate = UpdateFields & {
   submitted_at: string | null;
 };
 
-export type AgendaInfoItem = { id: string; name: string; text: string };
+// updateId + fieldKey say which thing this is, so reactions and comments can be attached.
+export type AgendaInfoItem = {
+  id: string;
+  name: string;
+  text: string;
+  updateId?: string;
+  fieldKey?: string;
+};
 
 // A topic the room can talk through: it can be upvoted and marked discussed.
 export type DiscussionItem = {
@@ -56,11 +64,14 @@ export function buildAgenda(
     participants.find((p) => p.id === participantId)?.display_name ?? "Someone";
 
   const infoItems = (
+    pickKey: string,
     pick: (u: AgendaUpdate) => string | null | undefined
   ): AgendaInfoItem[] =>
     shown.flatMap((u) => {
       const text = pick(u);
-      return text ? [{ id: u.id, name: nameFor(u.participant_id), text }] : [];
+      return text
+        ? [{ id: u.id, name: nameFor(u.participant_id), text, updateId: u.id, fieldKey: pickKey }]
+        : [];
     });
 
   // Offers are the roles someone tapped "offer accepted" or "offer extended" on.
@@ -72,14 +83,16 @@ export function buildAgenda(
           id: r.id,
           name: nameFor(u.participant_id),
           text: r.note ? `${r.role_title} · ${r.note}` : r.role_title,
+          updateId: u.id,
+          fieldKey: roleFieldKey(r.notion_page_id),
         }))
     );
   const offersAccepted = roleItems("offer_accepted");
   const offersExtended = roleItems("offer_extended");
   const offersAcceptedTotal = offersAccepted.length;
   const offersExtendedTotal = offersExtended.length;
-  const wins = infoItems((u) => (isMeaningful(u.wins) ? u.wins : null));
-  const rolesOpened = infoItems((u) => (isMeaningful(u.roles_opened) ? u.roles_opened : null));
+  const wins = infoItems(WINS_KEY, (u) => (isMeaningful(u.wins) ? u.wins : null));
+  const rolesOpened = infoItems("roles_opened", (u) => (isMeaningful(u.roles_opened) ? u.roles_opened : null));
 
   // Who upvoted each topic: several people can add to its count, but each only once.
   const keyOf = (r: ReactionRow) => `${r.target_update_id}:${r.field_key}`;

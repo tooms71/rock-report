@@ -1,6 +1,6 @@
 "use client";
 
-import type { Social } from "@/components/WinReactions";
+import type { Social } from "@/components/Reactions";
 import type { CommentRow } from "@/lib/social";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";

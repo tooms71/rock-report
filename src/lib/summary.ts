@@ -7,7 +7,7 @@ import {
   type DiscussionItem,
 } from "@/lib/agenda";
 import type { RoleUpdateRow } from "@/lib/roleStatus";
-import { WIN_EMOJIS, WINS_KEY, type CommentRow } from "@/lib/social";
+import { WIN_EMOJIS, type CommentRow } from "@/lib/social";
 
 const oneLine = (text: string) =>
   text
@@ -39,15 +39,34 @@ export function buildMeetingNotes({
 
   const bullets = (heading: string, items: AgendaInfoItem[]) =>
     [heading, ...items.map((i) => `- ${i.name}: ${oneLine(i.text)}`)].join("\n");
+  // What the team said about one thing: its emoji counts and its comments, oldest first.
+  const tallyFor = (updateId: string, fieldKey: string) => {
+    const tallies = WIN_EMOJIS.flatMap(({ emoji }) => {
+      const count = reactions.filter(
+        (r) =>
+          r.target_type === "field" &&
+          r.target_update_id === updateId &&
+          r.field_key === fieldKey &&
+          r.emoji === emoji
+      ).length;
+      return count > 0 ? [`${emoji} ${count}`] : [];
+    });
+    return tallies.length > 0 ? ` (${tallies.join(" ")})` : "";
+  };
+  const repliesFor = (updateId: string, fieldKey: string) =>
+    comments
+      .filter((c) => c.target_update_id === updateId && c.field_key === fieldKey)
+      .sort((a, b) => a.created_at.localeCompare(b.created_at))
+      .map((c) => `  - ${agenda.nameFor(c.participant_id)}: ${oneLine(c.body)}`);
   const numbered = (heading: string, items: DiscussionItem[]) =>
     [
       heading,
-      ...items.map(
-        (item, index) =>
-          `${index + 1}. ${item.discussed ? "[discussed]" : "[not discussed]"} ${item.name}${
-            item.voteCount > 0 ? ` (${item.voteCount} ${item.voteCount === 1 ? "upvote" : "upvotes"})` : ""
-          }: ${oneLine(item.value ?? "")}`
-      ),
+      ...items.flatMap((item, index) => [
+        `${index + 1}. ${item.discussed ? "[discussed]" : "[not discussed]"} ${item.name}${
+          item.voteCount > 0 ? ` (${item.voteCount} ${item.voteCount === 1 ? "upvote" : "upvotes"})` : ""
+        }: ${oneLine(item.value ?? "")}`,
+        ...repliesFor(item.updateId, item.fieldKey),
+      ]),
     ].join("\n");
   const withTotal = (heading: string, items: AgendaInfoItem[], total: number) =>
     items.length >= 2 ? `${heading} (${total} this week)` : heading;
@@ -55,33 +74,23 @@ export function buildMeetingNotes({
   // Wins carry the team's reactions and comments, like the Notion doc they replace.
   if (agenda.wins.length > 0) {
     const lines = agenda.wins.flatMap((win) => {
-      const tallies = WIN_EMOJIS.flatMap(({ emoji }) => {
-        const count = reactions.filter(
-          (r) =>
-            r.target_type === "field" &&
-            r.target_update_id === win.id &&
-            r.field_key === WINS_KEY &&
-            r.emoji === emoji
-        ).length;
-        return count > 0 ? [`${emoji} ${count}`] : [];
-      });
-      const replies = comments
-        .filter((c) => c.target_update_id === win.id && c.field_key === WINS_KEY)
-        .sort((a, b) => a.created_at.localeCompare(b.created_at))
-        .map((c) => `  - ${agenda.nameFor(c.participant_id)}: ${oneLine(c.body)}`);
-      return [
-        `- ${win.name}: ${oneLine(win.text)}${tallies.length > 0 ? ` (${tallies.join(" ")})` : ""}`,
-        ...replies,
-      ];
+      const key = win.fieldKey ?? "wins";
+      const id = win.updateId ?? win.id;
+      return [`- ${win.name}: ${oneLine(win.text)}${tallyFor(id, key)}`, ...repliesFor(id, key)];
     });
     sections.push(["Wins", ...lines].join("\n"));
   }
   if (agenda.offersAccepted.length > 0) {
     sections.push(
-      bullets(
+      [
         withTotal("Offers accepted", agenda.offersAccepted, agenda.offersAcceptedTotal),
-        agenda.offersAccepted
-      )
+        ...agenda.offersAccepted.map(
+          (i) =>
+            `- ${i.name}: ${oneLine(i.text)}${
+              i.updateId && i.fieldKey ? tallyFor(i.updateId, i.fieldKey) : ""
+            }`
+        ),
+      ].join("\n")
     );
   }
   if (agenda.offersExtended.length > 0) {

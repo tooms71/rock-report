@@ -19,8 +19,8 @@ import { CopyButton } from "@/components/CopyButton";
 import { OpenRoles } from "@/components/OpenRoles";
 import { SubmittedSummary } from "@/components/SubmittedSummary";
 import { RoleUpdates } from "@/components/RoleUpdates";
-import type { Social } from "@/components/WinReactions";
-import { WINS_KEY, type CommentRow } from "@/lib/social";
+import type { Social } from "@/components/Reactions";
+import type { CommentRow } from "@/lib/social";
 import type { RoleUpdateRow } from "@/lib/roleStatus";
 import { buildMeetingNotes } from "@/lib/summary";
 import { buildAgenda } from "@/lib/agenda";
@@ -788,7 +788,7 @@ export default function Home() {
   const handleToggleFlag = (updateId: string, fieldKey: string) =>
     toggleReaction(updateId, fieldKey, FLAG_EMOJI);
 
-  async function handleAddComment(updateId: string, body: string): Promise<boolean> {
+  async function handleAddComment(updateId: string, fieldKey: string, body: string): Promise<boolean> {
     bump();
     if (!me || !session || me.id === VIEWER_ID) return false;
     const { data, error: commentError } = await supabase
@@ -797,7 +797,7 @@ export default function Home() {
         session_id: session.id,
         target_type: "field",
         target_update_id: updateId,
-        field_key: WINS_KEY,
+        field_key: fieldKey,
         participant_id: me.id,
         body,
       })
@@ -848,14 +848,14 @@ export default function Home() {
   const leftToDiscuss = flaggedTopicCount - discussedCount;
 
   const facilitatorName = FACILITATOR_NAME;
-  // Reactions and comments on wins: open while reading and in the meeting, read-only once closed.
+  // Emoji and comments on what people wrote: open while reading and in the meeting, read-only once closed.
   const social: Social = {
     comments,
     nameOf: (participantId) =>
       participants.find((p) => p.id === participantId)?.display_name ?? "Someone",
     myParticipantId: me?.id ?? "",
     canReact: !!me && !isViewer && !isClosed,
-    onToggleEmoji: (updateId, emoji) => void toggleReaction(updateId, WINS_KEY, emoji),
+    onToggleEmoji: (updateId, fieldKey, emoji) => void toggleReaction(updateId, fieldKey, emoji),
     onAddComment: handleAddComment,
   };
 

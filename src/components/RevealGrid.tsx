@@ -7,7 +7,8 @@ import { ClampedText } from "@/components/ClampedText";
 import { ANOMALIES_KEY, HIVE_MIND_KEY, COOL_KEY } from "@/lib/fields";
 import { RoleStatusBadge } from "@/components/RoleStatusBadge";
 import { roleFieldKey, type RoleUpdateRow } from "@/lib/roleStatus";
-import { WinReactions, type Social } from "@/components/WinReactions";
+import { Reactions, type Social } from "@/components/Reactions";
+import { WINS_KEY } from "@/lib/social";
 import { isMeaningful, isShown } from "@/lib/updates";
 
 type ParticipantRow = {
@@ -206,7 +207,7 @@ function UpdateCard({
               </p>
               <ul className="flex flex-col gap-3">
                 {roles.map((role) => (
-                  <li key={role.id} className="flex items-start justify-between gap-2">
+                  <li key={role.id} className="flex flex-wrap items-start justify-between gap-x-2">
                     <div className="min-w-0">
                       <p className="text-base text-ardesia [overflow-wrap:anywhere] dark:text-marmol">
                         {role.role_title}
@@ -226,6 +227,20 @@ function UpdateCard({
                         {...upvote(roleFieldKey(role.notion_page_id))}
                       />
                     )}
+                    {social &&
+                      (role.status === "offer_accepted" ||
+                        (role.status === "stalled" && role.discuss)) && (
+                        <div className="w-full">
+                          <Reactions
+                            updateId={update.id}
+                            fieldKey={roleFieldKey(role.notion_page_id)}
+                            reactions={reactions}
+                            social={social}
+                            emoji={role.status === "offer_accepted"}
+                            comments={role.status === "stalled"}
+                          />
+                        </div>
+                      )}
                   </li>
                 ))}
               </ul>
@@ -240,8 +255,24 @@ function UpdateCard({
               value={row.value}
               upvote={row.upvoteKey ? upvote(row.upvoteKey) : undefined}
             >
-              {row.label === "Wins" && social && (
-                <WinReactions updateId={update.id} reactions={reactions} social={social} />
+              {social && row.label === "Wins" && (
+                <Reactions
+                  updateId={update.id}
+                  fieldKey={WINS_KEY}
+                  reactions={reactions}
+                  social={social}
+                  emoji
+                  comments
+                />
+              )}
+              {social && row.upvoteKey && (
+                <Reactions
+                  updateId={update.id}
+                  fieldKey={row.upvoteKey}
+                  reactions={reactions}
+                  social={social}
+                  comments
+                />
               )}
             </Field>
           ))}

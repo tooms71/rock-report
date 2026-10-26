@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ChevronIcon, CommentIcon } from "@/components/Icons";
 import type { ReactionRow } from "@/components/RevealGrid";
-import { MAX_COMMENT_LENGTH, WIN_EMOJIS, WINS_KEY, type CommentRow } from "@/lib/social";
+import { MAX_COMMENT_LENGTH, WIN_EMOJIS, type CommentRow } from "@/lib/social";
 import { inputClass } from "@/lib/ui";
 
 export type Social = {
@@ -12,20 +12,29 @@ export type Social = {
   myParticipantId: string;
   // Reading and the meeting are open to reactions; a closed session is read-only.
   canReact: boolean;
-  onToggleEmoji?: (updateId: string, emoji: string) => void;
-  onAddComment?: (updateId: string, body: string) => Promise<boolean>;
+  onToggleEmoji?: (updateId: string, fieldKey: string, emoji: string) => void;
+  onAddComment?: (updateId: string, fieldKey: string, body: string) => Promise<boolean>;
 };
 
-// Emoji reactions and a short comment thread under one person's wins. Everything arrives
-// live, so people can react while the wins are being read out.
-export function WinReactions({
+// Emoji reactions and/or a folded comment thread under one thing someone wrote (a win, an
+// accepted offer, a hive mind request...). Both are keyed by the person's update plus the
+// field, and arrive live, so people can react while items are being read out.
+export function Reactions({
   updateId,
+  fieldKey,
   reactions,
   social,
+  emoji = false,
+  comments: withComments = false,
 }: {
   updateId: string;
+  fieldKey: string;
   reactions: ReactionRow[];
   social: Social;
+  // Which of the two this item gets: wins get both, accepted offers just emoji, hive mind
+  // and the other boxes just comments.
+  emoji?: boolean;
+  comments?: boolean;
 }) {
   // Comments stay folded until someone opens them, so the agenda stays short.
   const [open, setOpen] = useState(false);
@@ -33,27 +42,34 @@ export function WinReactions({
   const [sending, setSending] = useState(false);
 
   const mine = reactions.filter(
-    (r) => r.target_type === "field" && r.target_update_id === updateId && r.field_key === WINS_KEY
+    (r) => r.target_type === "field" && r.target_update_id === updateId && r.field_key === fieldKey
   );
   const comments = social.comments
-    .filter((c) => c.target_update_id === updateId && c.field_key === WINS_KEY)
+    .filter((c) => c.target_update_id === updateId && c.field_key === fieldKey)
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
-  const canReact = social.canReact && !!social.onToggleEmoji;
-  const canComment = social.canReact && !!social.onAddComment;
+  const canReact = emoji && social.canReact && !!social.onToggleEmoji;
+  const canComment = withComments && social.canReact && !!social.onAddComment;
 
-  const chips = WIN_EMOJIS.map(({ emoji, label }) => {
-    const rows = mine.filter((r) => r.emoji === emoji);
-    return { emoji, label, count: rows.length, byMe: rows.some((r) => r.participant_id === social.myParticipantId) };
-  }).filter((chip) => canReact || chip.count > 0);
+  const chips = emoji
+    ? WIN_EMOJIS.map(({ emoji: symbol, label }) => {
+        const rows = mine.filter((r) => r.emoji === symbol);
+        return {
+          emoji: symbol,
+          label,
+          count: rows.length,
+          byMe: rows.some((r) => r.participant_id === social.myParticipantId),
+        };
+      }).filter((chip) => canReact || chip.count > 0)
+    : [];
 
-  const showComments = canComment || comments.length > 0;
+  const showComments = canComment || (withComments && comments.length > 0);
   if (chips.length === 0 && !showComments) return null;
 
   async function send() {
     const body = draft.trim();
     if (!body || sending || !social.onAddComment) return;
     setSending(true);
-    const ok = await social.onAddComment(updateId, body);
+    const ok = await social.onAddComment(updateId, fieldKey, body);
     setSending(false);
     if (ok) setDraft("");
   }
@@ -68,7 +84,7 @@ export function WinReactions({
               type="button"
               aria-pressed={byMe}
               aria-label={`${label}${count > 0 ? `, ${count}` : ""}`}
-              onClick={() => social.onToggleEmoji?.(updateId, emoji)}
+              onClick={() => social.onToggleEmoji?.(updateId, fieldKey, emoji)}
               className={`inline-flex min-h-8 items-center gap-1 rounded-full border px-2.5 text-sm font-semibold tabular-nums transition max-sm:min-h-11 ${
                 byMe
                   ? "border-ember-ink bg-ember-ink/10 text-ember-ink"

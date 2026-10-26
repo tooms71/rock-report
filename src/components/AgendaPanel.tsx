@@ -10,6 +10,7 @@ import {
   TrendIcon,
   UpvoteIcon,
 } from "@/components/Icons";
+import { WINS_KEY } from "@/lib/social";
 import { ClampedText } from "@/components/ClampedText";
 import {
   buildAgenda,
@@ -19,7 +20,7 @@ import {
   type DiscussionItem,
 } from "@/lib/agenda";
 import type { RoleUpdateRow } from "@/lib/roleStatus";
-import { WinReactions, type Social } from "@/components/WinReactions";
+import { Reactions, type Social } from "@/components/Reactions";
 
 // The meeting's agenda, in the order the room works through it: celebrate (wins and
 // offers), read out the new roles, the topics the facilitator added, then the lists the
@@ -75,7 +76,14 @@ export function AgendaPanel({
                 extra={
                   social
                     ? (item) => (
-                        <WinReactions updateId={item.id} reactions={reactions} social={social} />
+                        <Reactions
+                          updateId={item.updateId ?? item.id}
+                          fieldKey={item.fieldKey ?? WINS_KEY}
+                          reactions={reactions}
+                          social={social}
+                          emoji
+                          comments
+                        />
                       )
                     : undefined
                 }
@@ -85,6 +93,20 @@ export function AgendaPanel({
                 items={agenda.offersAccepted}
                 // With one person the total just repeats their number.
                 total={agenda.offersAccepted.length >= 2 ? agenda.offersAcceptedTotal : undefined}
+                extra={
+                  social
+                    ? (item) =>
+                        item.updateId && item.fieldKey ? (
+                          <Reactions
+                            updateId={item.updateId}
+                            fieldKey={item.fieldKey}
+                            reactions={reactions}
+                            social={social}
+                            emoji
+                          />
+                        ) : null
+                    : undefined
+                }
               />
               <InfoGroup
                 title="Offers extended"
@@ -131,6 +153,8 @@ export function AgendaPanel({
           canMarkDiscussed={canMarkDiscussed}
           closed={closed}
           onToggleDiscussed={onToggleDiscussed}
+          social={social}
+          reactions={reactions}
         />
         <DiscussionSection
           title="Anomalies and trends"
@@ -140,6 +164,8 @@ export function AgendaPanel({
           canMarkDiscussed={canMarkDiscussed}
           closed={closed}
           onToggleDiscussed={onToggleDiscussed}
+          social={social}
+          reactions={reactions}
         />
         <DiscussionSection
           title="Worth sharing"
@@ -149,6 +175,8 @@ export function AgendaPanel({
           canMarkDiscussed={canMarkDiscussed}
           closed={closed}
           onToggleDiscussed={onToggleDiscussed}
+          social={social}
+          reactions={reactions}
         />
       </div>
     </section>
@@ -173,11 +201,16 @@ function DiscussionSection({
   canMarkDiscussed,
   closed,
   onToggleDiscussed,
+  social,
+  reactions,
 }: {
   title: string;
   icon: ReactNode;
   items: DiscussionItem[];
   emptyText: string;
+  // Given when people can comment on these topics (not the facilitator's own).
+  social?: Social;
+  reactions?: ReactionRow[];
   canMarkDiscussed: boolean;
   closed: boolean;
   onToggleDiscussed?: (updateId: string, fieldKey: string) => void;
@@ -213,6 +246,8 @@ function DiscussionSection({
                 index={index}
                 canMarkDiscussed={canMarkDiscussed}
                 onToggleDiscussed={onToggleDiscussed}
+                social={social}
+                reactions={reactions}
               />
             ))}
           </ol>
@@ -227,9 +262,13 @@ function TopicItem({
   index,
   canMarkDiscussed,
   onToggleDiscussed,
+  social,
+  reactions,
 }: {
   item: DiscussionItem;
   index: number;
+  social?: Social;
+  reactions?: ReactionRow[];
   canMarkDiscussed: boolean;
   onToggleDiscussed?: (updateId: string, fieldKey: string) => void;
 }) {
@@ -266,6 +305,15 @@ function TopicItem({
         >
           {item.value}
         </ClampedText>
+        {social && reactions && (
+          <Reactions
+            updateId={item.updateId}
+            fieldKey={item.fieldKey}
+            reactions={reactions}
+            social={social}
+            comments
+          />
+        )}
         {canMarkDiscussed && onToggleDiscussed && (
           <div className="mt-2">
             <button
