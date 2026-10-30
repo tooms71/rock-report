@@ -16,6 +16,7 @@ import {
 import { AgendaPanel } from "@/components/AgendaPanel";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { CopyButton } from "@/components/CopyButton";
+import { PostToSlackButton } from "@/components/PostToSlackButton";
 import { OpenRoles } from "@/components/OpenRoles";
 import { SubmittedSummary } from "@/components/SubmittedSummary";
 import { RoleUpdates } from "@/components/RoleUpdates";
@@ -855,6 +856,17 @@ export default function Home() {
   const showingResults =
     !!me &&
     (session?.phase === "reveal" || session?.phase === "agenda" || session?.phase === "closed");
+  const notesText = () =>
+    session
+      ? buildMeetingNotes({
+          weekLabel: formatWeekOf(session.week_of),
+          participants,
+          updates: allUpdates,
+          reactions,
+          roleUpdates,
+          comments,
+        })
+      : "";
   const inReveal = session?.phase === "reveal";
   const inAgenda = session?.phase === "agenda";
   const isClosed = session?.phase === "closed";
@@ -1104,22 +1116,14 @@ export default function Home() {
                 </p>
               )}
               {isClosed && (
-                <div className="mt-4">
+                <div className="mt-4 flex flex-col gap-3">
                   <CopyButton
                     primary
                     label="Copy meeting notes"
                     copiedText="Copied. Paste it into Slack or Notion."
-                    getText={() =>
-                      buildMeetingNotes({
-                        weekLabel: formatWeekOf(session.week_of),
-                        participants,
-                        updates: allUpdates,
-                        reactions,
-                        roleUpdates,
-                        comments,
-                      })
-                    }
+                    getText={notesText}
                   />
+                  {isFacilitator && <PostToSlackButton sessionId={session.id} getNotes={notesText} />}
                 </div>
               )}
               {isViewer && (

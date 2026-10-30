@@ -10,6 +10,9 @@ import { AgendaPanel } from "@/components/AgendaPanel";
 import { RevealGrid, type ReactionRow } from "@/components/RevealGrid";
 import { formatWeekOf } from "@/lib/date";
 import { CopyButton } from "@/components/CopyButton";
+import { PostToSlackButton } from "@/components/PostToSlackButton";
+import { useCurrentUser } from "@/components/AuthGate";
+import { isFacilitatorEmail } from "@/lib/facilitators";
 import { buildMeetingNotes } from "@/lib/summary";
 import { formatSessionSummary, summarizeSession } from "@/lib/agenda";
 import type { RoleUpdateRow } from "@/lib/roleStatus";
@@ -35,6 +38,7 @@ type UpdateRow = UpdateFields & {
 export default function SessionDetailPage() {
   const params = useParams<{ id: string }>();
   const sessionId = params.id;
+  const user = useCurrentUser();
 
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<SessionRow | null>(null);
@@ -114,6 +118,16 @@ export default function SessionDetailPage() {
     );
   }
 
+  const notesText = () =>
+    buildMeetingNotes({
+      weekLabel: formatWeekOf(session.week_of),
+      participants,
+      updates,
+      reactions,
+      roleUpdates,
+      comments,
+    });
+
   // Past sessions are read-only: reactions and comments show, but can't be added.
   const social: Social = {
     comments,
@@ -142,21 +156,17 @@ export default function SessionDetailPage() {
         </div>
       </div>
 
-      <CopyButton
-        primary
-        label="Copy meeting notes"
-        copiedText="Copied. Paste it into Slack or Notion."
-        getText={() =>
-          buildMeetingNotes({
-            weekLabel: formatWeekOf(session.week_of),
-            participants,
-            updates,
-            reactions,
-            roleUpdates,
-            comments,
-          })
-        }
-      />
+      <div className="flex flex-col gap-3">
+        <CopyButton
+          primary
+          label="Copy meeting notes"
+          copiedText="Copied. Paste it into Slack or Notion."
+          getText={notesText}
+        />
+        {isFacilitatorEmail(user.email) && session.phase === "closed" && (
+          <PostToSlackButton sessionId={session.id} getNotes={notesText} />
+        )}
+      </div>
       <AgendaPanel participants={participants} updates={updates} reactions={reactions} roleUpdates={roleUpdates} social={social} closed={session.phase === "closed"} />
       <details className="group">
         <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 font-heading text-2xl font-bold text-ardesia dark:text-marmol [&::-webkit-details-marker]:hidden">

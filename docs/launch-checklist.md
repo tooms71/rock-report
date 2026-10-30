@@ -152,3 +152,23 @@ the person up in the Notion **Team Directory** by Google email, and returns the 
 **Data to keep tidy in Notion:** everyone needs their Carrara email in the Team Directory, and
 every open role needs a Talent Partner, or it shows up for nobody. People missing from the
 directory see a short "couldn't find you" note and cannot report offers.
+
+## Post the meeting notes to Slack (built)
+
+After a meeting is closed, a facilitator (Bec or Shannon) sees a **Post to Slack** button next
+to "Copy meeting notes". It asks once, then posts the notes to **#f-talent-general** with a
+link back to the full session. The same button is on a closed session in the archive.
+
+**To turn it on in each place the app runs** (the address is a secret, never committed):
+
+1. In Slack (api.slack.com/apps), create an app for the Carrara workspace, turn on
+   **Incoming Webhooks**, and **Add New Webhook to Workspace**, choosing #f-talent-general.
+   A workspace admin may need to approve the app. If the channel is private, the app has to be
+   added to it.
+2. Copy the webhook URL (it starts `https://hooks.slack.com/services/`).
+3. Live: Vercel, Project Settings, Environment Variables, add `SLACK_WEBHOOK_URL` (Production,
+   Sensitive), then redeploy. Local: add `SLACK_WEBHOOK_URL` to `.env.local`.
+
+Until it is set, the button says "Slack isn't connected yet." Only facilitators can post (the
+server checks the sign-in email against `src/lib/facilitators.ts`). The webhook decides the
+channel, so changing channels means making a new webhook and swapping the URL.
