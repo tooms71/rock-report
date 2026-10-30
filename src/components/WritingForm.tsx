@@ -148,7 +148,7 @@ export function WritingForm({
 
       <TextField
         label="What might you want to discuss with the Hive Mind?"
-        hint="For example market changes, problems you're running into, or advice on how to shape a search. Leave blank if nothing. Whatever you write goes on the agenda and the team can upvote it"
+        hint="Market changes, problems you're running into, or advice on how to shape a search, etc. Leave blank if nothing."
         value={fields.need_brain_on}
         onChange={(v) => updateField("need_brain_on", v)}
         rows={3}
