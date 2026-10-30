@@ -8,7 +8,6 @@ export type UpdateFields = {
   roles_opened: string | null;
   wins: string | null;
   need_brain_on: string | null; // the hive mind box
-  anomalies: string | null; // anomalies and trends
   anything_else: string | null; // worth sharing
   facilitator_topics: string | null; // the facilitator's own agenda topics
 };
@@ -139,8 +138,8 @@ export function WritingForm({
 
       {isFacilitator && (
         <TextField
-          label="Topics to add to the agenda"
-          hint="One per line. They go on the agenda after new roles, before the hive mind"
+          label="Facilitator - Topics to Discuss"
+          hint="Only you see this box. One topic per line. They go on the agenda after new roles, before the hive mind"
           value={fields.facilitator_topics}
           onChange={(v) => updateField("facilitator_topics", v)}
           rows={3}
@@ -148,18 +147,10 @@ export function WritingForm({
       )}
 
       <TextField
-        label="What might you want the hive mind for?"
-        hint="Leave blank if nothing. Whatever you write goes on the agenda and the team can upvote it"
+        label="What might you want to discuss with the Hive Mind?"
+        hint="For example market changes, problems you're running into, or advice on how to shape a search. Leave blank if nothing. Whatever you write goes on the agenda and the team can upvote it"
         value={fields.need_brain_on}
         onChange={(v) => updateField("need_brain_on", v)}
-        rows={3}
-      />
-
-      <TextField
-        label="Are you seeing any anomalies or trends?"
-        hint="For example comp changes. It joins the agenda if the team upvotes it"
-        value={fields.anomalies}
-        onChange={(v) => updateField("anomalies", v)}
         rows={3}
       />
 

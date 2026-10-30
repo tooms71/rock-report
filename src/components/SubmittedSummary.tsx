@@ -15,7 +15,6 @@ export function SubmittedSummary({
     { label: "New roles opened", value: fields.roles_opened },
     { label: "Topics to add", value: fields.facilitator_topics },
     { label: "Hive mind", value: fields.need_brain_on },
-    { label: "Anomalies and trends", value: fields.anomalies },
     { label: "Worth sharing", value: fields.anything_else },
   ].filter((row): row is { label: string; value: string } => !!row.value);
 
@@ -36,7 +35,7 @@ export function SubmittedSummary({
               {roles.map((role) => (
                 <dd key={role.id} className="text-base text-ardesia dark:text-marmol">
                   <span className="[overflow-wrap:anywhere]">{role.role_title}</span>{" "}
-                  <RoleStatusBadge status={role.status} />
+                  <RoleStatusBadge status={role.status} mine />
                 </dd>
               ))}
             </div>

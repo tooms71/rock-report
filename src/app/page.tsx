@@ -121,19 +121,22 @@ export default function Home() {
         await supabase.from("sessions").update({ phase: "writing" }).eq("id", sessionData.id);
         sessionData.phase = "writing";
       }
-      setSession(sessionData);
 
+      // Load who is in the session before showing it. Otherwise a returning visitor looks
+      // like a stranger for a moment and the app tries to add them a second time.
+      let participantsData: ParticipantRow[] = [];
       if (sessionData) {
-        const { data: participantsData } = await supabase
+        const { data } = await supabase
           .from("participants")
           .select("*")
           .eq("session_id", sessionData.id)
           .order("joined_at", { ascending: true });
-
-        if (!active) return;
-        setParticipants(participantsData ?? []);
+        participantsData = data ?? [];
       }
 
+      if (!active) return;
+      setParticipants(participantsData);
+      setSession(sessionData);
       setLoading(false);
     }
 
@@ -573,6 +576,20 @@ export default function Home() {
         .insert({ session_id: session.id, user_id: user.id, display_name: myDisplayName })
         .select()
         .single();
+      // Already in this session (a second tab, or a join that crossed with a reload)? That is
+      // fine: use the existing row instead of showing an error.
+      if (insertError?.code === "23505") {
+        const { data: existing } = await supabase
+          .from("participants")
+          .select("*")
+          .eq("session_id", session.id)
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (existing) {
+          setParticipants((prev) => (prev.some((p) => p.id === existing.id) ? prev : [...prev, existing]));
+          return;
+        }
+      }
       if (insertError) throw insertError;
       setParticipants((prev) => (prev.some((p) => p.id === data.id) ? prev : [...prev, data]));
     } catch {

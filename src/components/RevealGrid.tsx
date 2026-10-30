@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { UpdateFields } from "@/components/WritingForm";
-import { HiveIcon, SparkIcon, TopicsIcon, TrendIcon, UpvoteIcon } from "@/components/Icons";
+import { HiveIcon, SparkIcon, TopicsIcon, UpvoteIcon } from "@/components/Icons";
 import { ClampedText } from "@/components/ClampedText";
-import { ANOMALIES_KEY, HIVE_MIND_KEY, COOL_KEY } from "@/lib/fields";
+import { HIVE_MIND_KEY, COOL_KEY } from "@/lib/fields";
 import { RoleStatusBadge } from "@/components/RoleStatusBadge";
 import { roleFieldKey, type RoleUpdateRow } from "@/lib/roleStatus";
 import { Reactions, type Social } from "@/components/Reactions";
@@ -146,8 +146,8 @@ function UpdateCard({
     onToggle: () => onToggleFlag(update.id, key),
   });
 
-  // Everything someone wrote, in the order the agenda reads it out. Only the hive mind,
-  // anomalies and worth-sharing boxes can be upvoted; the rest is read out as written.
+  // Everything someone wrote, in the order the agenda reads it out. Only the hive mind
+  // and worth-sharing boxes can be upvoted; the rest is read out as written.
   const rows: {
     label: string;
     value: string | null;
@@ -166,12 +166,6 @@ function UpdateCard({
       value: update.need_brain_on,
       icon: <HiveIcon className="size-4 shrink-0 text-ember-ink" />,
       upvoteKey: HIVE_MIND_KEY,
-    },
-    {
-      label: "Anomalies and trends",
-      value: update.anomalies,
-      icon: <TrendIcon className="size-4 shrink-0 text-ember-ink" />,
-      upvoteKey: ANOMALIES_KEY,
     },
     {
       label: "Worth sharing",
@@ -209,40 +203,44 @@ function UpdateCard({
                 {roles.map((role) => (
                   <li key={role.id}>
                     <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-base text-ardesia [overflow-wrap:anywhere] dark:text-marmol">
-                        {role.role_title}
-                      </p>
-                      <p className="flex flex-wrap items-center gap-x-2 text-sm text-grafite dark:text-marmol/80">
-                        <RoleStatusBadge status={role.status} />
-                        {role.status === "stalled" && role.discuss && (
-                          <span className="font-semibold text-ember-ink">On the agenda</span>
-                        )}
-                        {role.note && <span className="[overflow-wrap:anywhere]">{role.note}</span>}
-                      </p>
+                      <div className="min-w-0">
+                        <p className="text-base text-ardesia [overflow-wrap:anywhere] dark:text-marmol">
+                          {role.role_title}
+                        </p>
+                        <p className="flex flex-wrap items-center gap-x-2 text-sm text-grafite dark:text-marmol/80">
+                          <RoleStatusBadge status={role.status} />
+                          {role.status === "stalled" && (
+                            <span className="font-semibold text-ember-ink">On the agenda</span>
+                          )}
+                          {/* Gray is private to its owner, so its note stays private too. */}
+                          {role.note && role.status !== "struggling" && (
+                            <span className="[overflow-wrap:anywhere]">{role.note}</span>
+                          )}
+                        </p>
+                      </div>
+                      {role.status === "stalled" && (
+                        <UpvoteButton
+                          label="Blocked role"
+                          subject={name}
+                          {...upvote(roleFieldKey(role.notion_page_id))}
+                        />
+                      )}
                     </div>
-                    {role.status === "stalled" && role.discuss && (
-                      <UpvoteButton
-                        label="Stalled role"
-                        subject={name}
-                        {...upvote(roleFieldKey(role.notion_page_id))}
+                    {social && (
+                      <Reactions
+                        updateId={update.id}
+                        fieldKey={roleFieldKey(role.notion_page_id)}
+                        reactions={reactions}
+                        social={social}
+                        // Celebrate the wins; every status can be commented on.
+                        emoji={
+                          role.status === "on_track" ||
+                          role.status === "offer_extended" ||
+                          role.status === "offer_accepted"
+                        }
+                        comments
                       />
                     )}
-                    </div>
-                    {social &&
-                      (role.status === "offer_accepted" ||
-                        (role.status === "stalled" && role.discuss)) && (
-                        <div>
-                          <Reactions
-                            updateId={update.id}
-                            fieldKey={roleFieldKey(role.notion_page_id)}
-                            reactions={reactions}
-                            social={social}
-                            emoji={role.status === "offer_accepted"}
-                            comments={role.status === "stalled"}
-                          />
-                        </div>
-                      )}
                   </li>
                 ))}
               </ul>

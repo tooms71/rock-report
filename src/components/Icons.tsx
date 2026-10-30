@@ -127,16 +127,6 @@ export function SendIcon({ className }: IconProps) {
   );
 }
 
-// Anomalies and trends: a line that climbs, with a break in it.
-export function TrendIcon({ className }: IconProps) {
-  return (
-    <Svg className={className}>
-      <path d="M3.5 17l5-5.5 3.5 3 6.5-8" />
-      <path d="M14.5 6.5h4v4" />
-    </Svg>
-  );
-}
-
 // Topics added to the agenda: a list with bullets.
 export function TopicsIcon({ className }: IconProps) {
   return (

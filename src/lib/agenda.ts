@@ -38,10 +38,9 @@ export type DiscussionItem = {
 //   1. wins, offers accepted, offers extended  (offers come from the role buttons)
 //   2. new roles opened                         (read out)
 //   3. topics the facilitator added             (in the order she wrote them)
-//   4. hive mind                                (everything people asked, plus any stalled
-//                                                role its owner put forward, most upvotes first)
-//   5. anomalies and trends                     (only what got an upvote, most first)
-//   6. worth sharing                            (only what got an upvote, most first)
+//   4. hive mind                                (everything people asked, plus every blocked
+//                                                role, most upvotes first)
+//   5. worth sharing                            (only what got an upvote, most first)
 // Everyone is listed in the order they joined, so numbers match between the live view,
 // the archive and the copied notes.
 export function buildAgenda(
@@ -135,10 +134,11 @@ export function buildAgenda(
     return items.sort((a, b) => b.voteCount - a.voteCount);
   };
 
-  // A stalled role joins the hive mind list only when its owner asked to discuss it.
+  // A blocked (red) role means "I want help on this in the meeting", so it joins the hive
+  // mind list by itself.
   const stalledRoles: DiscussionItem[] = shown.flatMap((u) =>
     roleUpdates
-      .filter((r) => r.participant_id === u.participant_id && r.status === "stalled" && r.discuss)
+      .filter((r) => r.participant_id === u.participant_id && r.status === "stalled")
       .map((r) => {
         const fieldKey = roleFieldKey(r.notion_page_id);
         const itemKey = `${u.id}:${fieldKey}`;
@@ -147,7 +147,7 @@ export function buildAgenda(
           updateId: u.id,
           fieldKey,
           name: nameFor(u.participant_id),
-          label: "Stalled role",
+          label: "Blocked role",
           value: r.note ? `${r.role_title}. ${r.note}` : r.role_title,
           discussed: discussedKeys.has(itemKey),
           voteCount: voteCountFor(itemKey),
@@ -155,11 +155,10 @@ export function buildAgenda(
       })
   );
 
-  const [hive, anomaly, cool] = UPVOTE_FIELDS;
+  const [hive, cool] = UPVOTE_FIELDS;
   const hiveMind = [...topics(hive.key, hive.label, false), ...stalledRoles].sort(
     (a, b) => b.voteCount - a.voteCount
   );
-  const anomalies = topics(anomaly.key, anomaly.label, true);
   const cools = topics(cool.key, cool.label, true);
 
   // The facilitator's box: one agenda topic per line, kept in the order she wrote them.
@@ -196,10 +195,9 @@ export function buildAgenda(
     rolesOpened,
     facilitatorTopics,
     hiveMind,
-    anomalies,
     cool: cools,
     // Everything the room has to talk through, for counts and the close prompt.
-    discussion: [...facilitatorTopics, ...hiveMind, ...anomalies, ...cools],
+    discussion: [...facilitatorTopics, ...hiveMind, ...cools],
   };
 }
 

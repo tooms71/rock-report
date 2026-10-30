@@ -7,7 +7,6 @@ import {
   RolesIcon,
   SparkIcon,
   TopicsIcon,
-  TrendIcon,
   UpvoteIcon,
 } from "@/components/Icons";
 import { WINS_KEY } from "@/lib/social";
@@ -24,7 +23,7 @@ import { Reactions, type Social } from "@/components/Reactions";
 
 // The meeting's agenda, in the order the room works through it: celebrate (wins and
 // offers), read out the new roles, the topics the facilitator added, then the lists the
-// team votes on: the hive mind, anomalies and trends, and what is worth sharing. It leads the page, sets in larger type for a shared screen, and sits
+// team votes on: the hive mind and what is worth sharing. It leads the page, sets in larger type for a shared screen, and sits
 // on its own raised surface.
 export function AgendaPanel({
   participants,
@@ -103,6 +102,7 @@ export function AgendaPanel({
                             reactions={reactions}
                             social={social}
                             emoji
+                            comments
                           />
                         ) : null
                     : undefined
@@ -112,6 +112,21 @@ export function AgendaPanel({
                 title="Offers extended"
                 items={agenda.offersExtended}
                 total={agenda.offersExtended.length >= 2 ? agenda.offersExtendedTotal : undefined}
+                extra={
+                  social
+                    ? (item) =>
+                        item.updateId && item.fieldKey ? (
+                          <Reactions
+                            updateId={item.updateId}
+                            fieldKey={item.fieldKey}
+                            reactions={reactions}
+                            social={social}
+                            emoji
+                            comments
+                          />
+                        ) : null
+                    : undefined
+                }
               />
             </div>
           ) : (
@@ -150,17 +165,6 @@ export function AgendaPanel({
           icon={<HiveIcon className="size-6" />}
           items={agenda.hiveMind}
           emptyText="Nobody has asked the hive mind for anything."
-          canMarkDiscussed={canMarkDiscussed}
-          closed={closed}
-          onToggleDiscussed={onToggleDiscussed}
-          social={social}
-          reactions={reactions}
-        />
-        <DiscussionSection
-          title="Anomalies and trends"
-          icon={<TrendIcon className="size-6" />}
-          items={agenda.anomalies}
-          emptyText="Nothing here has been upvoted yet."
           canMarkDiscussed={canMarkDiscussed}
           closed={closed}
           onToggleDiscussed={onToggleDiscussed}

@@ -1,14 +1,54 @@
-// The four things someone can say about each of their open roles.
+// What someone can say about each of their open roles. The first four are a traffic light
+// for how the search is going; the last two are offers.
+//
+// `short` is the label on the buttons in the narrow writing column; `label` is the full
+// name used everywhere else; `emoji` sits beside either (screen readers skip it);
+// `hint` explains the choice under the buttons once it is picked.
 export const ROLE_STATUSES = [
-  // `short` is the label on the buttons in the narrow writing column; `label` is the full
-  // name used everywhere else; `emoji` sits beside either (screen readers skip it).
-  { value: "on_track", label: "On track", short: "On track", emoji: "🟢" },
-  { value: "stalled", label: "Stalled", short: "Stalled", emoji: "🔴" },
-  { value: "offer_extended", label: "Offer extended", short: "Extended", emoji: "🤞" },
-  { value: "offer_accepted", label: "Offer accepted", short: "Accepted", emoji: "🎉" },
+  {
+    value: "on_track",
+    label: "Going well",
+    short: "Going well",
+    emoji: "🟢",
+    group: "health",
+    hint: "Going well. No need to discuss.",
+  },
+  {
+    value: "slow",
+    label: "Slow",
+    short: "Slow",
+    emoji: "🟡",
+    group: "health",
+    hint: "Going okay, but you're keeping an eye on it because it's slow.",
+  },
+  {
+    // Private: only the owner sees gray. Everyone else sees it as yellow (see publicStatus).
+    value: "struggling",
+    label: "Struggling",
+    short: "Struggling",
+    emoji: "⚪",
+    group: "health",
+    hint: "Not going great, but not ready to problem-solve with the group. Only you see gray; the team sees yellow.",
+  },
+  {
+    // The stored value is still "stalled" from when this was the only red option.
+    value: "stalled",
+    label: "Blocked",
+    short: "Blocked",
+    emoji: "🔴",
+    group: "health",
+    hint: "Blocked, and you want help on this role in the meeting. It goes on the agenda.",
+  },
+  { value: "offer_extended", label: "Offer extended", short: "Extended", emoji: "🤞", group: "offer", hint: "" },
+  { value: "offer_accepted", label: "Offer accepted", short: "Accepted", emoji: "🎉", group: "offer", hint: "" },
 ] as const;
 
 export type RoleStatus = (typeof ROLE_STATUSES)[number]["value"];
+
+// What the rest of the team sees. Gray ("struggling") is private to its owner and reads as
+// yellow to everyone else.
+export const publicStatus = (status: RoleStatus): RoleStatus =>
+  status === "struggling" ? "slow" : status;
 
 export const roleStatusEmoji = (status: RoleStatus) =>
   ROLE_STATUSES.find((s) => s.value === status)?.emoji ?? "";
@@ -25,12 +65,12 @@ export type RoleUpdateRow = {
   role_url: string | null;
   status: RoleStatus;
   note: string | null;
-  // A stalled role only goes on the agenda when its owner asks for it.
+  // No longer used: a blocked role goes on the agenda by itself now.
   discuss: boolean;
   updated_at: string;
 };
 
-// A stalled role goes on the agenda as a hive mind topic, so it can be upvoted and marked
+// A blocked role goes on the agenda as a hive mind topic, so it can be upvoted and marked
 // discussed like any other topic. Reactions are keyed by update + field, so a role gets a
 // field key of its own.
 export const roleFieldKey = (notionPageId: string) => `role:${notionPageId}`;

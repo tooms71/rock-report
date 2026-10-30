@@ -7,6 +7,8 @@
   --ember-ink: #b53a0f;
   /* Calm green for "on track": >=4.5:1 on white and on the light tints. */
   --moss-ink: #2b6b4a;
+  /* Amber for "slow": >=4.5:1 on white and on the light tint. */
+  --amber-ink: #8a5a00;
   color-scheme: light;
 }
 
@@ -19,6 +21,7 @@
   --color-ember-fill: #c93d0e; /* fills carrying white text (5:1) */
   --color-ember-ink: var(--ember-ink); /* small text and icons; flips in dark mode */
   --color-moss-ink: var(--moss-ink); /* on track: text and icons; flips in dark mode */
+  --color-amber-ink: var(--amber-ink); /* slow: text and icons; flips in dark mode */
   --color-ember-light: #fdded4;
   --color-grafite: #595959;
   --color-nuvola: #9a938e;
@@ -35,6 +38,7 @@
     --foreground: #eeeeee;
     --ember-ink: #ff7a4d; /* 5.4:1 on the charcoal background */
     --moss-ink: #7fd0a1; /* 8:1 on the charcoal background */
+    --amber-ink: #f0c15a; /* 8:1 on the charcoal background */
     color-scheme: dark;
   }
 }

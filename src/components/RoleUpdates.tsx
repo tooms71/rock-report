@@ -8,7 +8,6 @@ import {
   type RoleStatus,
   type RoleUpdateRow,
 } from "@/lib/roleStatus";
-import { CheckIcon } from "@/components/Icons";
 
 type Loaded =
   | { kind: "loading" }
@@ -18,13 +17,18 @@ type Loaded =
 
 const STATUS_STYLE: Record<RoleStatus, string> = {
   on_track: "border-moss-ink bg-moss-ink/15 text-moss-ink",
+  slow: "border-amber-ink bg-amber-ink/15 text-amber-ink",
+  struggling: "border-grafite bg-grafite/15 text-ardesia dark:border-marmol/70 dark:bg-white/15 dark:text-marmol",
   stalled: "border-ember-ink bg-ember-ink/10 text-ember-ink",
   offer_extended:
     "border-ardesia bg-ardesia/10 text-ardesia dark:border-marmol dark:bg-white/15 dark:text-marmol",
   offer_accepted: "border-ember-fill bg-ember-fill text-white",
 };
 
-// The signed-in person's own open roles from Notion, each with four status buttons. A tap
+const hintFor = (status: RoleStatus) => ROLE_STATUSES.find((s) => s.value === status)?.hint ?? "";
+
+// The signed-in person's own open roles from Notion, each with status buttons (four for how
+// it's going, two for offers). A tap
 // saves straight away; tapping the chosen status again clears it. Nothing is written back
 // to Notion. If the roles can't be loaded the rest of the form works as normal.
 export function RoleUpdates({
@@ -89,8 +93,6 @@ export function RoleUpdates({
           role_url: role.url,
           status,
           note: existing?.note ?? null,
-          // Changing status starts over: a role is only discussed if it is stalled and asked for.
-          discuss: false,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "participant_id,notion_page_id" }
@@ -107,18 +109,6 @@ export function RoleUpdates({
     const { data, error } = await supabase
       .from("role_updates")
       .update({ note: value, updated_at: new Date().toISOString() })
-      .eq("id", existing.id)
-      .select()
-      .single();
-    if (error || !data) setSaveError(true);
-    else onSaved(data as RoleUpdateRow);
-  }
-
-  async function toggleDiscuss(existing: RoleUpdateRow) {
-    setSaveError(false);
-    const { data, error } = await supabase
-      .from("role_updates")
-      .update({ discuss: !existing.discuss, updated_at: new Date().toISOString() })
       .eq("id", existing.id)
       .select()
       .single();
@@ -171,59 +161,56 @@ export function RoleUpdates({
                     role.title
                   )}
                 </p>
-                <div
-                  role="group"
-                  aria-label={`Status for ${role.title}`}
-                  className="grid grid-cols-4 gap-2"
-                >
-                  {ROLE_STATUSES.map(({ value, label, short, emoji }) => {
-                    const selected = STATUS_STYLE[value];
-                    const on = current?.status === value;
-                    return (
-                      <button
-                        key={value}
-                        type="button"
-                        aria-pressed={on}
-                        aria-label={label}
-                        onClick={() => void choose(role, value)}
-                        className={`inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border px-1 text-sm font-semibold transition max-sm:flex-col max-sm:gap-0 max-sm:py-1 ${
-                          on
-                            ? selected
-                            : "border-grafite/40 text-ardesia hover:border-ember-ink hover:text-ember-ink dark:border-white/30 dark:text-marmol"
-                        }`}
-                      >
-                        <span aria-hidden="true">{emoji}</span>
-                        {short}
-                      </button>
-                    );
-                  })}
-                </div>
+                {(["health", "offer"] as const).map((group) => (
+                  <div
+                    key={group}
+                    role="group"
+                    aria-label={`${group === "health" ? "How it's going" : "Offers"} for ${role.title}`}
+                    className={`grid gap-2 ${group === "health" ? "grid-cols-4" : "grid-cols-2"}`}
+                  >
+                    {ROLE_STATUSES.filter((s) => s.group === group).map(
+                      ({ value, label, short, emoji }) => {
+                        const selected = STATUS_STYLE[value];
+                        const on = current?.status === value;
+                        return (
+                          <button
+                            key={value}
+                            type="button"
+                            aria-pressed={on}
+                            aria-label={label}
+                            onClick={() => void choose(role, value)}
+                            className={`inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border px-1 text-sm font-semibold transition max-sm:py-1 ${
+                              group === "health" ? "max-sm:flex-col max-sm:gap-0" : ""
+                            } ${
+                              on
+                                ? selected
+                                : "border-grafite/40 text-ardesia hover:border-ember-ink hover:text-ember-ink dark:border-white/30 dark:text-marmol"
+                            }`}
+                          >
+                            <span aria-hidden="true">{emoji}</span>
+                            {short}
+                          </button>
+                        );
+                      }
+                    )}
+                  </div>
+                ))}
+                {current && hintFor(current.status) && (
+                  <p className="text-sm text-grafite dark:text-marmol/80">{hintFor(current.status)}</p>
+                )}
                 {current && (
                   <input
                     type="text"
                     aria-label={`Note for ${role.title}`}
                     placeholder={
-                      current.status === "stalled" ? "What's the blocker? (optional)" : "Add a note (optional)"
+                      current.status === "stalled"
+                        ? "What's blocking it, and what help do you want? (optional)"
+                        : "Add a note (optional)"
                     }
                     defaultValue={current.note ?? ""}
                     onBlur={(e) => void saveNote(current, e.target.value)}
                     className="min-h-11 w-full rounded-lg border border-grafite/40 bg-transparent px-3 text-base text-ardesia placeholder:text-grafite/70 dark:border-white/30 dark:text-marmol"
                   />
-                )}
-                {current?.status === "stalled" && (
-                  <button
-                    type="button"
-                    aria-pressed={current.discuss}
-                    onClick={() => void toggleDiscuss(current)}
-                    className={`inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-lg border px-3 text-sm font-semibold transition ${
-                      current.discuss
-                        ? "border-ember-ink bg-ember-ink/10 text-ember-ink"
-                        : "border-grafite/40 text-ardesia hover:border-ember-ink hover:text-ember-ink dark:border-white/30 dark:text-marmol"
-                    }`}
-                  >
-                    {current.discuss && <CheckIcon className="size-4" />}
-                    {current.discuss ? "On the agenda. Tap to remove" : "Discuss with the group"}
-                  </button>
                 )}
               </li>
             );

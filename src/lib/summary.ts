@@ -17,8 +17,8 @@ const oneLine = (text: string) =>
     .join("; ");
 
 // Plain-text meeting notes, ready to paste into Slack or Notion, in the same order as the
-// agenda: wins and offers, new roles, the facilitator's topics, hive mind, anomalies and
-// trends, then worth sharing.
+// agenda: wins and offers, new roles, the facilitator's topics, hive mind, then
+// worth sharing.
 export function buildMeetingNotes({
   weekLabel,
   participants,
@@ -80,22 +80,30 @@ export function buildMeetingNotes({
     });
     sections.push(["Wins", ...lines].join("\n"));
   }
+  // Offers carry the team's reactions and comments too (celebrating a role win).
+  const offerLines = (heading: string, items: AgendaInfoItem[]) =>
+    [
+      heading,
+      ...items.flatMap((i) =>
+        i.updateId && i.fieldKey
+          ? [
+              `- ${i.name}: ${oneLine(i.text)}${tallyFor(i.updateId, i.fieldKey)}`,
+              ...repliesFor(i.updateId, i.fieldKey),
+            ]
+          : [`- ${i.name}: ${oneLine(i.text)}`]
+      ),
+    ].join("\n");
   if (agenda.offersAccepted.length > 0) {
     sections.push(
-      [
+      offerLines(
         withTotal("Offers accepted", agenda.offersAccepted, agenda.offersAcceptedTotal),
-        ...agenda.offersAccepted.map(
-          (i) =>
-            `- ${i.name}: ${oneLine(i.text)}${
-              i.updateId && i.fieldKey ? tallyFor(i.updateId, i.fieldKey) : ""
-            }`
-        ),
-      ].join("\n")
+        agenda.offersAccepted
+      )
     );
   }
   if (agenda.offersExtended.length > 0) {
     sections.push(
-      bullets(
+      offerLines(
         withTotal("Offers extended", agenda.offersExtended, agenda.offersExtendedTotal),
         agenda.offersExtended
       )
@@ -107,9 +115,6 @@ export function buildMeetingNotes({
     sections.push(numbered(`Topics from ${authors}`, agenda.facilitatorTopics));
   }
   if (agenda.hiveMind.length > 0) sections.push(numbered("Hive mind", agenda.hiveMind));
-  if (agenda.anomalies.length > 0) {
-    sections.push(numbered("Anomalies and trends", agenda.anomalies));
-  }
   if (agenda.cool.length > 0) sections.push(numbered("Worth sharing", agenda.cool));
 
   return sections.join("\n\n");
