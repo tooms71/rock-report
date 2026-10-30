@@ -22,6 +22,15 @@ export function getMondayOfWeek(date: Date): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+// The Monday of the meeting a person should be writing for right now. Writing opens on the
+// Thursday before the meeting, so from Thursday on this is the coming Monday; Monday to
+// Wednesday it is still the Monday just gone (the meeting that was just held).
+export function getMeetingMonday(date: Date): string {
+  const d = new Date(date);
+  d.setDate(d.getDate() + 4);
+  return getMondayOfWeek(d);
+}
+
 // Formats a non-negative number of seconds as "m:ss" for the writing timer.
 export function formatClock(totalSeconds: number): string {
   const seconds = Math.max(0, Math.round(totalSeconds));

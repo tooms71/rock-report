@@ -24,7 +24,7 @@ Written in advance, read together. The simultaneous reveal at the start of the m
 
 ## Operating Context
 
-- Weekly. The week's session opens the first time anyone visits; people write whenever they like. Bec is always the facilitator (matched by sign-in email, list in src/lib/facilitators.ts) and controls Start the meeting, Build the agenda and Close.
+- Weekly. The session for each Monday meeting opens on the Thursday before (the first visit creates it); people write whenever they like until the meeting. Bec is always the facilitator (matched by sign-in email, list in src/lib/facilitators.ts) and controls Start the meeting, Build the agenda and Close.
 - No scheduling or reminders in the app.
 - Data is stored in Supabase (free tier, which pauses after about a week of inactivity and must be restored from the dashboard). Hosting on Vercel is planned but not yet done.
 
@@ -64,7 +64,7 @@ Written in advance, read together. The simultaneous reveal at the start of the m
 
 ## Since 2026-10-26 (after the first whole-team round)
 
-- Phases: writing (open all week, no timer) -> reveal (read, upvote, react) -> agenda -> closed.
+- Phases: writing (opens the Thursday before the meeting, no timer) -> reveal (read, upvote, react) -> agenda -> closed.
 - The facilitator has a box for her own agenda topics (one per line); they sit between New roles opened and the hive mind.
 - Stalled roles join the hive mind only if their owner taps "Discuss with the group".
 - "Anomalies and trends" is a new box; like "Worth sharing", it reaches the agenda only once upvoted.

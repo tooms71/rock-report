@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { getMondayOfWeek, formatWeekOf, parseWeekOf } from "@/lib/date";
+import { getMeetingMonday, formatWeekOf, parseWeekOf } from "@/lib/date";
 import { getCurrentRock } from "@/lib/rocks";
 import { RockCard } from "@/components/RockCard";
 import { WritingForm, type UpdateFields } from "@/components/WritingForm";
@@ -106,7 +106,7 @@ export default function Home() {
     let active = true;
 
     async function load() {
-      const weekOf = getMondayOfWeek(new Date());
+      const weekOf = getMeetingMonday(new Date());
       const { data: sessionData } = await supabase
         .from("sessions")
         .select("*")
@@ -513,7 +513,7 @@ export default function Home() {
     setBusy(true);
     setError(null);
     try {
-      const weekOf = getMondayOfWeek(new Date());
+      const weekOf = getMeetingMonday(new Date());
 
       const { data: created, error: sessionError } = await supabase
         .from("sessions")
