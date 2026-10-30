@@ -118,14 +118,14 @@ export default function SessionDetailPage() {
     );
   }
 
-  const notesText = () =>
+  const notesText = ({ withComments = true } = {}) =>
     buildMeetingNotes({
       weekLabel: formatWeekOf(session.week_of),
       participants,
       updates,
       reactions,
       roleUpdates,
-      comments,
+      comments: withComments ? comments : [],
     });
 
   // Past sessions are read-only: reactions and comments show, but can't be added.
@@ -161,10 +161,10 @@ export default function SessionDetailPage() {
           primary
           label="Copy meeting notes"
           copiedText="Copied. Paste it into Slack or Notion."
-          getText={notesText}
+          getText={() => notesText()}
         />
         {isFacilitatorEmail(user.email) && session.phase === "closed" && (
-          <PostToSlackButton sessionId={session.id} getNotes={notesText} />
+          <PostToSlackButton sessionId={session.id} getNotes={() => notesText({ withComments: false })} />
         )}
       </div>
       <AgendaPanel participants={participants} updates={updates} reactions={reactions} roleUpdates={roleUpdates} social={social} closed={session.phase === "closed"} />

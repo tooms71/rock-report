@@ -156,19 +156,26 @@ directory see a short "couldn't find you" note and cannot report offers.
 ## Post the meeting notes to Slack (built)
 
 After a meeting is closed, a facilitator (Bec or Shannon) sees a **Post to Slack** button next
-to "Copy meeting notes". It asks once, then posts the notes to **#f-talent-general** with a
-link back to the full session. The same button is on a closed session in the archive.
+to "Copy meeting notes". It asks once, then posts to **#f-talent-general** in the usual Carrara
+way: a short code-styled title ("Rock Report: week of Nov 2, 2026") with the notes as a reply in
+its thread, plus a link back to the full session. Comments are left out of the Slack version;
+not-discussed items are kept so people can pick them up in the thread. The same button is on a
+closed session in the archive.
 
-**To turn it on in each place the app runs** (the address is a secret, never committed):
+It uses a Slack app with a bot token, not a webhook, because only a bot can start a thread.
 
-1. In Slack (api.slack.com/apps), create an app for the Carrara workspace, turn on
-   **Incoming Webhooks**, and **Add New Webhook to Workspace**, choosing #f-talent-general.
-   A workspace admin may need to approve the app. If the channel is private, the app has to be
-   added to it.
-2. Copy the webhook URL (it starts `https://hooks.slack.com/services/`).
-3. Live: Vercel, Project Settings, Environment Variables, add `SLACK_WEBHOOK_URL` (Production,
-   Sensitive), then redeploy. Local: add `SLACK_WEBHOOK_URL` to `.env.local`.
+**To turn it on in each place the app runs** (the token is a secret, never committed):
 
-Until it is set, the button says "Slack isn't connected yet." Only facilitators can post (the
-server checks the sign-in email against `src/lib/facilitators.ts`). The webhook decides the
-channel, so changing channels means making a new webhook and swapping the URL.
+1. In Slack (api.slack.com/apps), create an app for the Carrara workspace. Under **OAuth &
+   Permissions**, add the bot scope `chat:write`, then **Install to Workspace**. A workspace
+   admin may need to approve it.
+2. Copy the **Bot User OAuth Token** (starts `xoxb-`).
+3. In Slack, open #f-talent-general and type `/invite @<app name>` so the app can post there.
+4. Get the channel's ID: right-click the channel, View channel details, and it is at the bottom
+   (starts with `C`).
+5. Live: Vercel, Project Settings, Environment Variables, add `SLACK_BOT_TOKEN` (Production,
+   Sensitive) and `SLACK_CHANNEL_ID`, then redeploy. Local: add both to `.env.local`.
+
+Until both are set, the button says "Slack isn't connected yet." Only facilitators can post
+(the server checks the sign-in email against `src/lib/facilitators.ts`). Changing channels
+means changing `SLACK_CHANNEL_ID` (and inviting the app there).

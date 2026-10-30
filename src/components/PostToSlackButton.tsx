@@ -4,7 +4,7 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { ConfirmButton } from "@/components/ConfirmButton";
 
-type PostState = "idle" | "posting" | "posted" | "error" | "not_configured";
+type PostState = "idle" | "posting" | "posted" | "error" | "not_in_channel" | "not_configured";
 
 export const SLACK_CHANNEL = "#f-talent-general";
 
@@ -32,7 +32,8 @@ export function PostToSlackButton({
       });
       const body = await res.json();
       if (res.ok && body.status === "ok") setState("posted");
-      else setState(body.status === "not_configured" ? "not_configured" : "error");
+      else if (body.status === "not_configured") setState("not_configured");
+      else setState(body.detail === "not_in_channel" ? "not_in_channel" : "error");
     } catch {
       setState("error");
     }
@@ -52,7 +53,7 @@ export function PostToSlackButton({
         role="status"
         aria-live="polite"
         className={`text-sm ${
-          state === "error" || state === "not_configured"
+          state === "error" || state === "not_in_channel" || state === "not_configured"
             ? "font-semibold text-ember-ink"
             : "text-grafite dark:text-marmol/80"
         }`}
@@ -60,6 +61,8 @@ export function PostToSlackButton({
         {state === "posting" && "Posting…"}
         {state === "posted" && `Posted to ${SLACK_CHANNEL}.`}
         {state === "error" && "Couldn’t post to Slack. Try again, or copy the notes instead."}
+        {state === "not_in_channel" &&
+          `Add the Rock Report app to ${SLACK_CHANNEL} first (in Slack, type /invite @Rock Report there).`}
         {state === "not_configured" && "Slack isn’t connected yet."}
       </span>
     </div>

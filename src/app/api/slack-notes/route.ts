@@ -3,22 +3,34 @@ import { isAllowedEmail } from "@/lib/auth";
 import { isFacilitatorEmail } from "@/lib/facilitators";
 import { notesToSlack } from "@/lib/slackFormat";
 
-// Posts the meeting notes to the team's Slack channel. Only a facilitator signed in with a
-// Carrara account can do it, checked here on the server. The Slack webhook address is a
-// secret that decides which channel gets the post, so it stays in SLACK_WEBHOOK_URL on the
-// server and never reaches the browser.
+// Posts the meeting notes to the team's Slack channel: a short title message, then the
+// notes as a reply in its thread. Only a facilitator signed in with a Carrara account can
+// do it, checked here on the server. The Slack bot token is a secret, so it stays in
+// SLACK_BOT_TOKEN on the server and never reaches the browser. SLACK_CHANNEL_ID says where
+// to post.
 
 const MAX_NOTES_LENGTH = 30000;
 
 type Body =
   | { status: "ok" }
-  | { status: "not_configured" | "unauthorized" | "forbidden" | "bad_request" | "error" };
+  | { status: "not_configured" | "unauthorized" | "forbidden" | "bad_request" }
+  | { status: "error"; detail?: string };
 
 const json = (body: Body, status = 200) => Response.json(body, { status });
 
+async function slack(method: string, token: string, payload: Record<string, unknown>) {
+  const res = await fetch(`https://slack.com/api/${method}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json; charset=utf-8" },
+    body: JSON.stringify(payload),
+  });
+  return (await res.json()) as { ok: boolean; ts?: string; error?: string };
+}
+
 export async function POST(request: Request) {
-  const webhook = process.env.SLACK_WEBHOOK_URL;
-  if (!webhook) return json({ status: "not_configured" });
+  const token = process.env.SLACK_BOT_TOKEN;
+  const channel = process.env.SLACK_CHANNEL_ID;
+  if (!token || !channel) return json({ status: "not_configured" });
 
   const bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!bearer) return json({ status: "unauthorized" }, 401);
@@ -51,13 +63,22 @@ export async function POST(request: Request) {
   }
 
   const link = `${new URL(request.url).origin}/session/${sessionId}`;
+  const { title, body } = notesToSlack(notes, link);
   try {
-    const res = await fetch(webhook, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: notesToSlack(notes, link), mrkdwn: true }),
+    const parent = await slack("chat.postMessage", token, { channel, text: title });
+    if (!parent.ok || !parent.ts) return json({ status: "error", detail: parent.error }, 502);
+    const reply = await slack("chat.postMessage", token, {
+      channel,
+      thread_ts: parent.ts,
+      text: body,
+      unfurl_links: false,
     });
-    return res.ok ? json({ status: "ok" }) : json({ status: "error" }, 502);
+    if (!reply.ok) {
+      // Don't leave a title with nothing under it, so a retry doesn't double-post.
+      await slack("chat.delete", token, { channel, ts: parent.ts }).catch(() => undefined);
+      return json({ status: "error", detail: reply.error }, 502);
+    }
+    return json({ status: "ok" });
   } catch {
     return json({ status: "error" }, 502);
   }

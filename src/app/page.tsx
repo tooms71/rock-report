@@ -856,7 +856,7 @@ export default function Home() {
   const showingResults =
     !!me &&
     (session?.phase === "reveal" || session?.phase === "agenda" || session?.phase === "closed");
-  const notesText = () =>
+  const notesText = ({ withComments = true } = {}) =>
     session
       ? buildMeetingNotes({
           weekLabel: formatWeekOf(session.week_of),
@@ -864,7 +864,7 @@ export default function Home() {
           updates: allUpdates,
           reactions,
           roleUpdates,
-          comments,
+          comments: withComments ? comments : [],
         })
       : "";
   const inReveal = session?.phase === "reveal";
@@ -1121,9 +1121,9 @@ export default function Home() {
                     primary
                     label="Copy meeting notes"
                     copiedText="Copied. Paste it into Slack or Notion."
-                    getText={notesText}
+                    getText={() => notesText()}
                   />
-                  {isFacilitator && <PostToSlackButton sessionId={session.id} getNotes={notesText} />}
+                  {isFacilitator && <PostToSlackButton sessionId={session.id} getNotes={() => notesText({ withComments: false })} />}
                 </div>
               )}
               {isViewer && (
