@@ -58,13 +58,15 @@ export function buildMeetingNotes({
       .filter((c) => c.target_update_id === updateId && c.field_key === fieldKey)
       .sort((a, b) => a.created_at.localeCompare(b.created_at))
       .map((c) => `  - ${agenda.nameFor(c.participant_id)}: ${oneLine(c.body)}`);
-  const numbered = (heading: string, items: DiscussionItem[]) =>
+  const numbered = (heading: string, items: DiscussionItem[], withNames = true) =>
     [
       heading,
       ...items.flatMap((item, index) => [
-        `${index + 1}. ${item.discussed ? "[discussed]" : "[not discussed]"} ${item.name}${
-          item.voteCount > 0 ? ` (${item.voteCount} ${item.voteCount === 1 ? "upvote" : "upvotes"})` : ""
-        }: ${oneLine(item.value ?? "")}`,
+        `${index + 1}. ${item.discussed ? "[discussed]" : "[not discussed]"} ${
+          withNames ? `${item.name}${
+            item.voteCount > 0 ? ` (${item.voteCount} ${item.voteCount === 1 ? "upvote" : "upvotes"})` : ""
+          }: ` : ""
+        }${oneLine(item.value ?? "")}`,
         ...repliesFor(item.updateId, item.fieldKey),
       ]),
     ].join("\n");
@@ -111,8 +113,7 @@ export function buildMeetingNotes({
   }
   if (agenda.rolesOpened.length > 0) sections.push(bullets("New roles opened", agenda.rolesOpened));
   if (agenda.facilitatorTopics.length > 0) {
-    const authors = [...new Set(agenda.facilitatorTopics.map((t) => t.name))].join(" and ");
-    sections.push(numbered(`Topics from ${authors}`, agenda.facilitatorTopics));
+    sections.push(numbered("Topics this week", agenda.facilitatorTopics, false));
   }
   if (agenda.hiveMind.length > 0) sections.push(numbered("Hive mind", agenda.hiveMind));
   if (agenda.cool.length > 0) sections.push(numbered("Worth sharing", agenda.cool));

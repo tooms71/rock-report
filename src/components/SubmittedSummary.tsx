@@ -13,7 +13,7 @@ export function SubmittedSummary({
   const rows: { label: string; value: string }[] = [
     { label: "Wins", value: fields.wins },
     { label: "New roles opened", value: fields.roles_opened },
-    { label: "Topics to add", value: fields.facilitator_topics },
+    { label: "Facilitator - Topics to Discuss", value: fields.facilitator_topics },
     { label: "Hive mind", value: fields.need_brain_on },
     { label: "Worth sharing", value: fields.anything_else },
   ].filter((row): row is { label: string; value: string } => !!row.value);

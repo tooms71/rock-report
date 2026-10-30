@@ -47,7 +47,6 @@ export function AgendaPanel({
   animate?: boolean;
 }) {
   const agenda = buildAgenda(participants, updates, reactions, roleUpdates);
-  const topicAuthors = [...new Set(agenda.facilitatorTopics.map((t) => t.name))];
   const celebrating =
     agenda.wins.length + agenda.offersAccepted.length + agenda.offersExtended.length > 0;
 
@@ -151,9 +150,10 @@ export function AgendaPanel({
       <div className="mt-12 flex flex-col gap-12">
         {agenda.facilitatorTopics.length > 0 && (
           <DiscussionSection
-            title={`Topics from ${topicAuthors.join(" and ")}`}
+            title="Topics this week"
             icon={<TopicsIcon className="size-6" />}
             items={agenda.facilitatorTopics}
+            showNames={false}
             emptyText=""
             canMarkDiscussed={canMarkDiscussed}
             closed={closed}
@@ -207,11 +207,14 @@ function DiscussionSection({
   onToggleDiscussed,
   social,
   reactions,
+  showNames = true,
 }: {
   title: string;
   icon: ReactNode;
   items: DiscussionItem[];
   emptyText: string;
+  // The facilitator's topics are just "this week's topics", so no author name on each.
+  showNames?: boolean;
   // Given when people can comment on these topics (not the facilitator's own).
   social?: Social;
   reactions?: ReactionRow[];
@@ -252,6 +255,7 @@ function DiscussionSection({
                 onToggleDiscussed={onToggleDiscussed}
                 social={social}
                 reactions={reactions}
+                showName={showNames}
               />
             ))}
           </ol>
@@ -268,9 +272,11 @@ function TopicItem({
   onToggleDiscussed,
   social,
   reactions,
+  showName = true,
 }: {
   item: DiscussionItem;
   index: number;
+  showName?: boolean;
   social?: Social;
   reactions?: ReactionRow[];
   canMarkDiscussed: boolean;
@@ -291,7 +297,7 @@ function TopicItem({
             item.discussed ? "text-grafite dark:text-marmol/75" : "text-ardesia dark:text-marmol"
           }`}
         >
-          <span>{item.name}</span>
+          {showName && <span>{item.name}</span>}
           {item.voteCount > 0 && <VoteCount count={item.voteCount} />}
           {item.discussed && (
             <span className="inline-flex items-center gap-1 rounded-full bg-moss-ink/15 px-2 py-0.5 text-sm font-semibold text-moss-ink">
@@ -309,7 +315,8 @@ function TopicItem({
         >
           {item.value}
         </ClampedText>
-        {social && reactions && (
+        {/* Comments go on what people wrote; a blocked role is a status, so it has none. */}
+        {social && reactions && !item.fieldKey.startsWith("role:") && (
           <Reactions
             updateId={item.updateId}
             fieldKey={item.fieldKey}

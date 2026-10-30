@@ -25,8 +25,6 @@ const STATUS_STYLE: Record<RoleStatus, string> = {
   offer_accepted: "border-ember-fill bg-ember-fill text-white",
 };
 
-const hintFor = (status: RoleStatus) => ROLE_STATUSES.find((s) => s.value === status)?.hint ?? "";
-
 // The signed-in person's own open roles from Notion, each with status buttons (four for how
 // it's going, two for offers). A tap
 // saves straight away; tapping the chosen status again clears it. Nothing is written back
@@ -169,35 +167,52 @@ export function RoleUpdates({
                     className={`grid gap-2 ${group === "health" ? "grid-cols-4" : "grid-cols-2"}`}
                   >
                     {ROLE_STATUSES.filter((s) => s.group === group).map(
-                      ({ value, label, short, emoji }) => {
+                      ({ value, label, short, emoji, hint }) => {
                         const selected = STATUS_STYLE[value];
                         const on = current?.status === value;
+                        const tipId = `${role.id}-${value}-tip`;
+                        const position = (i: number, n: number) =>
+                          i === 0 ? "left-0" : i === n - 1 ? "right-0" : "left-1/2 -translate-x-1/2";
+                        const siblings = ROLE_STATUSES.filter((s) => s.group === group);
                         return (
-                          <button
-                            key={value}
-                            type="button"
-                            aria-pressed={on}
-                            aria-label={label}
-                            onClick={() => void choose(role, value)}
-                            className={`inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border px-1 text-sm font-semibold transition max-sm:py-1 ${
-                              group === "health" ? "max-sm:flex-col max-sm:gap-0" : ""
-                            } ${
-                              on
-                                ? selected
-                                : "border-grafite/40 text-ardesia hover:border-ember-ink hover:text-ember-ink dark:border-white/30 dark:text-marmol"
-                            }`}
-                          >
-                            <span aria-hidden="true">{emoji}</span>
-                            {short}
-                          </button>
+                          // The explanation sits in a tooltip above the button: on hover, on
+                          // keyboard focus, and on a phone while the button is held focused.
+                          <div key={value} className="group relative">
+                            <button
+                              type="button"
+                              aria-pressed={on}
+                              aria-label={label}
+                              aria-describedby={hint ? tipId : undefined}
+                              onClick={() => void choose(role, value)}
+                              className={`inline-flex h-full min-h-11 w-full items-center justify-center gap-1 rounded-lg border px-1 text-sm font-semibold transition max-sm:py-1 ${
+                                group === "health" ? "max-sm:flex-col max-sm:gap-0" : ""
+                              } ${
+                                on
+                                  ? selected
+                                  : "border-grafite/40 text-ardesia hover:border-ember-ink hover:text-ember-ink dark:border-white/30 dark:text-marmol"
+                              }`}
+                            >
+                              <span aria-hidden="true">{emoji}</span>
+                              {short}
+                            </button>
+                            {hint && (
+                              <span
+                                id={tipId}
+                                role="tooltip"
+                                className={`pointer-events-none absolute bottom-full z-30 mb-1.5 w-52 rounded-lg bg-ardesia px-3 py-2 text-left text-xs font-normal leading-snug text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 dark:bg-marmol dark:text-ardesia ${position(
+                                  siblings.findIndex((x) => x.value === value),
+                                  siblings.length
+                                )}`}
+                              >
+                                {hint}
+                              </span>
+                            )}
+                          </div>
                         );
                       }
                     )}
                   </div>
                 ))}
-                {current && hintFor(current.status) && (
-                  <p className="text-sm text-grafite dark:text-marmol/80">{hintFor(current.status)}</p>
-                )}
                 {current && (
                   <input
                     type="text"

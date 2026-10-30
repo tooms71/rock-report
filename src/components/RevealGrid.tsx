@@ -157,7 +157,7 @@ function UpdateCard({
     { label: "Wins", value: update.wins },
     { label: "New roles opened", value: update.roles_opened },
     {
-      label: "Topics to add",
+      label: "Topics this week",
       value: update.facilitator_topics,
       icon: <TopicsIcon className="size-4 shrink-0 text-ember-ink" />,
     },
@@ -226,18 +226,14 @@ function UpdateCard({
                         />
                       )}
                     </div>
-                    {social && (
+                    {/* Only offers can be celebrated and commented on; other statuses are just read. */}
+                    {social && (role.status === "offer_extended" || role.status === "offer_accepted") && (
                       <Reactions
                         updateId={update.id}
                         fieldKey={roleFieldKey(role.notion_page_id)}
                         reactions={reactions}
                         social={social}
-                        // Celebrate the wins; every status can be commented on.
-                        emoji={
-                          role.status === "on_track" ||
-                          role.status === "offer_extended" ||
-                          role.status === "offer_accepted"
-                        }
+                        emoji
                         comments
                       />
                     )}

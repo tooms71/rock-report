@@ -3,7 +3,7 @@
 //
 // `short` is the label on the buttons in the narrow writing column; `label` is the full
 // name used everywhere else; `emoji` sits beside either (screen readers skip it);
-// `hint` explains the choice under the buttons once it is picked.
+// `hint` is the hover text above the button that explains the choice.
 export const ROLE_STATUSES = [
   {
     value: "on_track",
@@ -11,7 +11,7 @@ export const ROLE_STATUSES = [
     short: "Going well",
     emoji: "🟢",
     group: "health",
-    hint: "Going well. No need to discuss.",
+    hint: "Going well. No need to discuss it.",
   },
   {
     value: "slow",
@@ -19,16 +19,16 @@ export const ROLE_STATUSES = [
     short: "Slow",
     emoji: "🟡",
     group: "health",
-    hint: "Going okay, but you're keeping an eye on it because it's slow.",
+    hint: "Going okay, but moving slowly, so you're keeping an eye on it.",
   },
   {
     // Private: only the owner sees gray. Everyone else sees it as yellow (see publicStatus).
     value: "struggling",
-    label: "Struggling",
-    short: "Struggling",
+    label: "Tough going",
+    short: "Tough",
     emoji: "⚪",
     group: "health",
-    hint: "Not going great, but not ready to problem-solve with the group. Only you see gray; the team sees yellow.",
+    hint: "Not going great, but not ready to problem-solve with the group yet. Only you see gray. The team sees yellow.",
   },
   {
     // The stored value is still "stalled" from when this was the only red option.
